@@ -221,6 +221,7 @@ function generateAutoBalancedMatch(courtIdx) {
 }
 
 // 🏟️ 실시간 코트 대진표 출력 및 내 경기 하이라이트 매핑
+// 🏟️ 실시간 코트 대진표 출력 및 내 경기 하이라이트 매핑 (테스트 모드 지원 버전)
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
     if (!container || !currentActiveSession || !targetSessionId) return;
@@ -240,6 +241,12 @@ function buildLiveCourtsDisplay() {
             ? "border-amber-400 bg-amber-50/50 ring-4 ring-amber-400/10 scale-[1.01]" 
             : "bg-white border-slate-200";
 
+        // 🔥 [테스트 모드 체크] 세션이 테스트모드이고 관리자일 때만 시뮬레이션 버튼 활성화
+        const isTestMode = currentActiveSession.isTestMode === true;
+        const testSimulateBtnHtml = (isTestMode && isSessionAdminMode)
+            ? `<button data-index="${idx}" class="btn-simulate-score w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black py-2 rounded-xl text-xs transition shadow-xs cursor-pointer animate-pulse">🤖 AI 가상 결과 자동 정산</button>`
+            : '';
+
         return `
             <div class="rounded-2xl border p-4 shadow-sm space-y-3.5 flex flex-col justify-between transition-all duration-300 ${highlightClass}">
                 <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
@@ -254,14 +261,68 @@ function buildLiveCourtsDisplay() {
                     <div class="col-span-1 text-[10px] font-black text-slate-300 font-mono">VS</div>
                     <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white shadow-2xs p-2.5 rounded-xl border border-slate-200/60">${m.teamBNames.join(' • ')}</div>
                 </div>
-                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">⚖️ 스코어 정산 입력</button>
+                <div class="space-y-1">
+                    <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">⚖️ 스코어 수동 입력</button>
+                    ${testSimulateBtnHtml}
+                </div>
             </div>
         `;
     }).join('');
 
+    // 기존 수동 입력 버튼 바인딩
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
+
+    // 🔥 [새로 추가] AI 자동 시뮬레이션 버튼 이벤트 바인딩
+    document.querySelectorAll('.btn-simulate-score').forEach(btn => {
+        btn.onclick = function() {
+            const courtIdx = parseInt(this.getAttribute('data-index'));
+            handleAiSimulationClick(courtIdx);
+        };
+    });
+}
+
+// 🔥 [테스트 모드 전용] AI 가상 스코어 자동 연산 및 즉시 정산기
+function handleAiSimulationClick(courtIdx) {
+    if (!isSessionAdminMode || !currentActiveSession) return;
+    const match = currentActiveSession.matches[courtIdx];
+    if (!match) return;
+
+    // 두 팀의 현재 MMR 합산 계산 (실력 척도)
+    const getAdjustedMmr = (id) => {
+        const player = allSystemPlayers.find(p => p.id === id);
+        if (!player) return 1000;
+        const stats = sessionMmrStatsMap[id] || { win: 0, lose: 0 };
+        const total = stats.win + stats.lose;
+        if (total === 0) return player.matchMmr;
+        const winRate = stats.win / total;
+        if (winRate >= 0.6) return player.matchMmr + 70;
+        if (winRate <= 0.4) return player.matchMmr - 70;
+        return player.matchMmr;
+    };
+
+    const sumA = match.teamA.reduce((sum, id) => sum + getAdjustedMmr(id), 0);
+    const sumB = match.teamB.reduce((sum, id) => sum + getAdjustedMmr(id), 0);
+
+    let scoreA, scoreB;
+    const randomFactor = Math.random(); // 0.0 ~ 1.0 랜덤값
+
+    // 기본적으로 MMR 합이 높은 팀이 이길 확률 80%, 이변이 일어날 확률 20%
+    if ((sumA >= sumB && randomFactor > 0.2) || (sumB > sumA && randomFactor <= 0.2)) {
+        // A팀 승리
+        scoreA = 21;
+        scoreB = 15 + Math.floor(Math.random() * 5); // 15 ~ 19점 사이로 패배 (접전)
+    } else {
+        // B팀 승리
+        scoreB = 21;
+        scoreA = 15 + Math.floor(Math.random() * 5); // 15 ~ 19점 사이로 패배
+    }
+
+    console.log(`🤖 [시뮬레이터] 코트 ${courtIdx + 1} 결과 생성 -> 팀A(${match.teamANames.join(',')}) [${scoreA} : ${scoreB}] 팀B(${match.teamBNames.join(',')})`);
+    
+    // 기존에 만들어둔 정산 메커니즘에 가상 스코어를 다이렉트로 주입
+    processMmrMatchCalculation(courtIdx, scoreA, scoreB);
 }
 
 // 경기 결과 처리 점수 연산
