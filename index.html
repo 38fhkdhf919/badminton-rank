@@ -23,40 +23,76 @@
         </div>
     </header>
 
-    <main class="max-w-5xl mx-auto p-4 mt-4">
-        <section class="bg-slate-900 rounded-xl border border-slate-800 shadow-md p-4 space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                <h2 class="text-sm font-bold text-slate-300 flex items-center gap-1.5">👥 1단계: 전체 회원 명단 목록</h2>
-                <p class="text-xs text-slate-500">※ 데이터베이스에 등록된 전체 명단입니다.</p>
-            </div>
+    <main class="max-w-5xl mx-auto p-4 mt-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-1">
+            <section class="bg-slate-900 rounded-xl border border-slate-800 shadow-md p-4 space-y-4 sticky top-24">
+                <div class="border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">✍️ 신규 회원 정보 등록</h2>
+                    <p class="text-[10px] text-slate-500 mt-0.5">새로운 회원을 실시간 데이터베이스에 추가합니다.</p>
+                </div>
 
-            <div class="overflow-x-auto max-h-[500px] overflow-y-auto rounded-lg border border-slate-950">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold sticky top-0 z-10">
-                            <th class="py-3 px-4 text-center w-16">고유 ID</th>
-                            <th class="py-3 px-4">이름</th>
-                            <th class="py-3 px-4 text-center">나이 (출생연도)</th>
-                            <th class="py-3 px-4 text-center">공식 급수</th>
-                            <th class="py-3 px-4 text-right text-emerald-400">공식 표시 점수</th>
-                            <th class="py-3 px-4 text-right text-indigo-400">매칭 히든 점수</th>
-                        </tr>
-                    </thead>
-                    <tbody id="playerTableBody" class="divide-y divide-slate-800/60 font-mono text-slate-300">
-                        <tr>
-                            <td colspan="6" class="py-8 text-center text-slate-600 font-sans">서버에서 실시간 명단을 불러오는 중...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                <form id="addPlayerForm" class="space-y-3 text-xs">
+                    <div class="space-y-1">
+                        <label class="text-slate-400 font-semibold">회원 이름</label>
+                        <input type="text" id="inputName" placeholder="예: 홍길동" required class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400 font-semibold">현재 나이 (만 나이 혹은 세)</label>
+                        <input type="number" id="inputAge" placeholder="예: 30" required class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400 font-semibold">클럽 배치 급수 (조)</label>
+                        <select id="selectTier" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white focus:border-indigo-500 focus:outline-none">
+                            <th class="bg-slate-900">A조</th>
+                            <option value="A">A조 (고수)</option>
+                            <option value="B">B조 (중고수)</option>
+                            <option value="C">C조 (일반)</option>
+                            <option value="D" selected>D조 (초심)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded shadow-md transition cursor-pointer mt-2">
+                        ➕ 서버에 회원 등록하기
+                    </button>
+                </form>
+            </section>
+        </div>
+
+        <div class="lg:col-span-2">
+            <section class="bg-slate-900 rounded-xl border border-slate-800 shadow-md p-4 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h2 class="text-sm font-bold text-slate-300 flex items-center gap-1.5">👥 전체 회원 명단 목록</h2>
+                </div>
+
+                <div class="overflow-x-auto max-h-[550px] overflow-y-auto rounded-lg border border-slate-950">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold sticky top-0 z-10">
+                                <th class="py-3 px-4 text-center w-16">고유 ID</th>
+                                <th class="py-3 px-4">이름</th>
+                                <th class="py-3 px-4 text-center">나이</th>
+                                <th class="py-3 px-4 text-center">급수</th>
+                                <th class="py-3 px-4 text-right text-emerald-400">공식 점수</th>
+                                <th class="py-3 px-4 text-right text-indigo-400">히든 점수</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playerTableBody" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-600 font-sans">서버에서 실시간 명단을 불러오는 중...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
     </main>
 
     <script type="module">
         import "./app.js";
 
         window.addEventListener('DOMContentLoaded', () => {
-            // app.js에 정의된 실시간 회원 데이터 수신 함수 작동
+            // 실시간 명단 구독 작동
             if (typeof window.listenToPlayers === 'function') {
                 window.listenToPlayers((playersList) => {
                     const tbody = document.getElementById('playerTableBody');
@@ -68,10 +104,8 @@
                         return;
                     }
 
-                    // 총 인원수 표기 업데이트
                     totalCountSpan.innerText = `${playersList.length}명`;
                     
-                    // 테이블 행(Row) 동적 생성
                     tbody.innerHTML = playersList.map(p => `
                         <tr class="hover:bg-slate-800/40 border-b border-slate-900/60 transition-colors">
                             <td class="py-2.5 px-4 text-center text-slate-500 text-[11px]">${p.id}</td>
@@ -86,6 +120,24 @@
                     `).join('');
                 });
             }
+
+            // ➕ 등록 폼 제출 이벤트 가로채기
+            document.getElementById('addPlayerForm').addEventListener('submit', (e) => {
+                e.preventDefault(); // 페이지 새로고침 방지
+                
+                const name = document.getElementById('inputName').value.trim();
+                const age = parseInt(document.getElementById('inputAge').value);
+                const tier = document.getElementById('selectTier').value;
+
+                if (typeof window.addNewPlayerToServer === 'function') {
+                    window.addNewPlayerToServer(name, age, tier, () => {
+                        // 성공 시 입력창 깔끔하게 비우기
+                        document.getElementById('inputName').value = '';
+                        document.getElementById('inputAge').value = '';
+                        document.getElementById('selectTier').value = 'D';
+                    });
+                }
+            });
         });
     </script>
 </body>
