@@ -16,90 +16,108 @@
             </div>
             <nav class="flex gap-2">
                 <a href="./index.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">🏠 홈 대시보드</a>
-                <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
+                <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-6 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
             </nav>
         </div>
     </header>
 
     <main class="max-w-5xl mx-auto p-4 mt-4">
         
-        <div id="viewReady" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+        <div id="viewReady" class="grid grid-cols-1 md:grid-cols-3 gap-6" style="display:none;">
             <div class="md:col-span-1 space-y-4">
                 <section class="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-sm sticky top-24">
                     <div class="border-b border-slate-100 pb-3">
                         <h2 class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider">⚙️ 1. 매칭 환경 설정</h2>
-                        <p class="text-[11px] text-slate-400 mt-0.5">정모 타이틀과 매칭 환경을 입력하세요.</p>
                     </div>
-                    
                     <div class="space-y-1.5 text-xs">
                         <label class="text-slate-600 font-bold">정모 명칭 (타이틀)</label>
                         <input type="text" id="inputSessionTitle" placeholder="예: 5월 마지막주 일요일 정모" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-medium focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
                     </div>
-
                     <div class="space-y-1.5 text-xs">
                         <label class="text-slate-600 font-bold">사용 가능 코트 수</label>
                         <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
-                            <option value="1">1 개 코트 (최소 4명 필요)</option>
-                            <option value="2">2 개 코트 (최소 8명 필요)</option>
-                            <option value="3">3 개 코트 (최소 12명 필요)</option>
-                            <option value="4" selected>4 개 코트 (최소 16명 필요)</option>
+                            <option value="1">1 개 코트</option>
+                            <option value="2">2 개 코트</option>
+                            <option value="3">3 개 코트</option>
+                            <option value="4" selected>4 개 코트</option>
                         </select>
                     </div>
-
-                    <div class="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1 text-[11px] text-slate-500 leading-relaxed font-sans">
-                        <p class="text-slate-700 font-bold">💡 실전 운영 가이드</p>
-                        <p>우측 명단에서 오늘 체육관에 출석한 회원들을 체크해 주세요. 지정하신 정모 이름은 대문 대시보드와 과거 기록실에 그대로 박제됩니다.</p>
-                    </div>
-
-                    <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg text-xs transition cursor-pointer flex justify-center items-center gap-1.5">
-                        ▶️ 정모 매칭 리그전 시작하기
-                    </button>
+                    <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-md text-xs cursor-pointer">▶️ 정모 매칭 리그전 시작하기</button>
                 </section>
             </div>
-
             <div class="md:col-span-2">
                 <section class="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-sm">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                         <div>
                             <h2 class="text-sm font-bold text-slate-800">👥 2. 오늘 정모 참석자 출석부</h2>
-                            <p class="text-[11px] text-slate-400 mt-0.5">선택된 인원: <span id="checkedCount" class="text-indigo-600 font-bold font-mono">0</span>명</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">선택된 인원: <span id="checkedCount" class="text-indigo-600 font-bold">0</span>명</p>
                         </div>
-                        <button id="btnSelectAll" class="text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer font-medium shadow-xs">전체 선택 / 해제</button>
+                        <button id="btnSelectAll" class="text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg font-medium shadow-xs">전체 선택 / 해제</button>
                     </div>
-
-                    <div id="attendanceGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[600px] overflow-y-auto pr-1">
-                        <div class="col-span-full py-12 text-center text-slate-400 text-xs font-sans">회원 데이터를 안전하게 가져오는 중...</div>
-                    </div>
+                    <div id="attendanceGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[600px] overflow-y-auto pr-1"></div>
                 </section>
             </div>
         </div>
 
-        <div id="viewLive" class="hidden grid grid-cols-1 gap-6">
-            <div class="bg-white rounded-xl border border-slate-200 p-8 text-center shadow-sm">
-                <h2 class="text-xl font-extrabold text-emerald-600">🔥 실시간 경기 매칭 리그 진행 중</h2>
-                <p class="text-xs text-slate-500 mt-2 font-sans" id="liveSessionNameDisplay">정모 리그전 구동 준비 완료</p>
-                <div class="mt-4 p-4 bg-slate-50 rounded-lg text-xs text-slate-400 border border-slate-100">
-                    현재 상태 감지 정상 작동 중입니다. 곧이어 실시간 대진표가 배치됩니다.
+        <div id="viewLive" class="grid grid-cols-1 gap-6" style="display:none;">
+            
+            <div class="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+                <div>
+                    <h2 class="text-sm font-black text-slate-900" id="liveSessionNameDisplay">🏆 라이브 리그전 진행 중</h2>
+                    <p class="text-[11px] text-slate-400 mt-0.5">코트별 경기가 끝나면 점수를 입력해 주세요. 실시간 MMR이 자동 정산됩니다.</p>
                 </div>
+                <button id="btnEndSession" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition cursor-pointer">
+                    🛑 오늘 정모 최종 종료 및 마감
+                </button>
             </div>
+
+            <div id="courtsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
         </div>
 
-        <div id="viewArchive" class="hidden text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div id="viewArchive" class="hidden text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm" style="display:none;">
             <h2 class="text-lg font-bold text-indigo-600">📝 정모 세션 마감 완료 (기록실)</h2>
-            <p class="text-xs text-slate-500 mt-2 font-sans">지나간 정모 기록 아카이브 조회 영역입니다.</p>
+            <p class="text-xs text-slate-500 mt-2">오늘 경기가 모두 종료되어 안전하게 저장되었습니다. 메인 대문으로 이동해 주세요.</p>
         </div>
 
     </main>
+
+    <div id="scoreModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 shadow-2xl" style="display: none;">
+        <div class="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div class="border-b border-slate-100 pb-2">
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider" id="modalCourtTitle">🏟️ 1번 코트 경기 결과 입력</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">해당 매치의 세트 정산 스코어를 정확히 입력하세요.</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                    <div class="text-left">
+                        <span class="text-[10px] font-bold text-rose-500 block">TEAM A</span>
+                        <span id="modalTeamANames" class="text-xs font-bold text-slate-800">선수 목록</span>
+                    </div>
+                    <input type="number" id="scoreA" min="0" max="31" value="0" class="w-16 bg-white border border-slate-200 rounded-lg p-2 text-center text-base font-black font-mono text-slate-900 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                    <div class="text-left">
+                        <span class="text-[10px] font-bold text-sky-500 block">TEAM B</span>
+                        <span id="modalTeamBNames" class="text-xs font-bold text-slate-800">선수 목록</span>
+                    </div>
+                    <input type="number" id="scoreB" min="0" max="31" value="0" class="w-16 bg-white border border-slate-200 rounded-lg p-2 text-center text-base font-black font-mono text-slate-900 focus:border-indigo-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2 text-xs">
+                <button id="btnCancelModal" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-lg transition cursor-pointer">취소</button>
+                <button id="btnSubmitScore" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition cursor-pointer shadow-md">경기 확정 정산</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import "./app.js";
         window.addEventListener('DOMContentLoaded', () => {
             if (typeof window.initSessionPage === 'function') {
                 window.initSessionPage();
-            } else {
-                console.error("app.js 모듈 로드 지연 발생 - 재호출 트리거 가동");
-                setTimeout(() => { if(window.initSessionPage) window.initSessionPage(); }, 500);
             }
         });
     </script>
