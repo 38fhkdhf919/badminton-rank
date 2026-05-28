@@ -6,7 +6,7 @@
     <title>🏸 클럽 리그전 메인 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 select-none">
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 select-none font-sans">
 
     <header class="bg-white border-b border-slate-200 p-4 sticky top-0 z-50 shadow-sm">
         <div class="max-w-5xl mx-auto flex justify-between items-center">
@@ -38,7 +38,15 @@
                         <label class="text-slate-600 font-bold">정모 타이틀</label>
                         <input type="text" id="newSessionTitle" placeholder="예: 5월 마지막주 정모 리그전" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-medium focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
                     </div>
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-md transition cursor-pointer">
+
+                    <div class="flex items-center gap-2 p-2 bg-purple-50 rounded-xl border border-purple-100 mt-2">
+                        <input type="checkbox" id="checkboxTestMode" class="w-4 h-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500 cursor-pointer">
+                        <label for="checkboxTestMode" class="text-[11px] text-purple-700 font-bold cursor-pointer select-none">
+                            🤖 AI 시뮬레이션 테스트 모드로 개설
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-md transition cursor-pointer mt-3">
                         ➕ 정모 방 새로 생성하기
                     </button>
                 </form>
@@ -60,12 +68,18 @@
 
     </main>
 
-    <script type="module">
-        import "./app.js";
-        window.addEventListener('DOMContentLoaded', () => {
-            if (typeof window.initDashboardPage === 'function') {
-                window.initDashboardPage();
-            }
+    <script type="module" src="./app.js"></script>
+    <script>
+        // HTML 및 모듈 비동기 로딩 타이밍 어긋남 방어막 장착
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (typeof window.initDashboardPage === 'function') {
+                    window.initDashboardPage();
+                    console.log("🚀 대시보드 마스터 엔진 안전 구동 성공!");
+                } else {
+                    setTimeout(() => { if(window.initDashboardPage) window.initDashboardPage(); }, 500);
+                }
+            }, 200);
         });
     </script>
 </body>
