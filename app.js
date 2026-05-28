@@ -1,15 +1,15 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// 본인의 실제 파이어베이스 주소 및 키 유지
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_AUTH_DOMAIN_HERE",
-    databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app", 
-    projectId: "YOUR_PROJECT_ID_HERE",
-    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-    appId: "YOUR_APP_ID_HERE"
+  apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
+  authDomain: "badminton-live-rank.firebaseapp.com",
+  databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app", 
+  projectId: "badminton-live-rank",
+  storageBucket: "badminton-live-rank.firebasestorage.app",
+  messagingSenderId: "803402263930",
+  appId: "1:803402263930:web:ebe85b833a86d6acd33ac3",
+  measurementId: "G-SE2PTKXVDJ"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -21,8 +21,17 @@ let targetSessionId = null;
 let currentActiveSession = null;
 let activeModalCourtIndex = null;
 
-// [대문 대시보드 스캔 리스너]
+// 🔥 [신규] 관리자 모드 활성화 상태 전역 변수
+let isAdminMode = false;
+const MASTER_PASSWORD = "1234"; // 임시 관리자 암호 (원하시는 번호로 변경 가능)
+
+// ==========================================
+// 🏢 대문 대시보드 (index.html) 제어 엔진
+// ==========================================
 window.initDashboardPage = function() {
+    console.log("🏠 대시보드 관리자 모드 탑재 스캔 가동...");
+    
+    // 1. 파이어베이스 멀티 정모 목록 실시간 스캔
     const sessionsRef = ref(db, 'sessions');
     onValue(sessionsRef, (snapshot) => {
         const data = snapshot.val();
@@ -33,22 +42,45 @@ window.initDashboardPage = function() {
             return;
         }
         const sessionEntries = Object.entries(data).reverse();
+        
         container.innerHTML = sessionEntries.map(([id, s]) => {
             let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
             if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
             if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
+            
+            // 🔥 [관리자 핵심] 인증 상태일 때만 빨간색 삭제 단추를 코드 옆에 동적으로 생성 부착
+            const deleteButtonHtml = isAdminMode 
+                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3 cursor-pointer">🗑️ 삭제</button>`
+                : '';
+
             return `
-                <a href="./session.html?id=${id}" class="block bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-400 transition-all flex justify-between items-center">
-                    <div class="space-y-1">
-                        <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
-                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 오늘 참여자: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개</p>
-                    </div>
-                    <span class="text-xs font-bold px-2.5 py-1 rounded border ${badgeStyle}">${s.status}</span>
-                </a>
+                <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-300 transition-all">
+                    <a href="./session.html?id=${id}" class="block flex-1 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
+                            <span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개</p>
+                    </a>
+                    ${deleteButtonHtml}
+                </div>
             `;
         }).join('');
+
+        // 🗑️ 삭제 버튼들 이벤트 주입
+        document.querySelectorAll('.btn-delete-session').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const sid = this.getAttribute('data-id');
+                if (confirm(`⚠️ [🚨 경고 - 관리자 마스터 권한]\n정말 해당 정모방(${sid})을 서버에서 영구 삭제하시겠습니까?\n이 작업은 정모 내부의 대진표와 출석부가 통째로 유실됩니다.`)) {
+                    remove(ref(db, `sessions/${sid}`))
+                        .then(() => { alert("💥 정모가 서버에서 완전히 파괴 삭제되었습니다."); });
+                }
+            };
+        });
     });
 
+    // 2. 신규 정모 개설
     const form = document.getElementById('createSessionForm');
     if (form) {
         form.onsubmit = function(e) {
@@ -62,9 +94,38 @@ window.initDashboardPage = function() {
             });
         };
     }
+
+    // 3. 🔥 [신규] 관리자 토글 버튼 클릭 이벤트 바인딩
+    const toggleBtn = document.getElementById('btnAdminToggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = function() {
+            if (!isAdminMode) {
+                // 패스워드 검증 절차 실행
+                const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
+                if (pw === MASTER_PASSWORD) {
+                    isAdminMode = true;
+                    this.innerText = "🔓 관리자 모드 해제";
+                    this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1";
+                    alert("🔓 관리자 인증 성공! 정모 편집 및 삭제 권한이 개방되었습니다.");
+                    // 목록 다시 렌더링을 유도하기 위해 가짜 리프레시 실행 처리
+                    if(window.initDashboardPage) window.initDashboardPage();
+                } else if (pw !== null) {
+                    alert("❌ 암호가 일치하지 않습니다. 접근 권한이 거부되었습니다.");
+                }
+            } else {
+                isAdminMode = false;
+                this.innerText = "🔐 관리자 모드 인증";
+                this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1";
+                alert("🔒 관리자 모드가 안전하게 해제되었습니다.");
+                if(window.initDashboardPage) window.initDashboardPage();
+            }
+        };
+    }
 };
 
-// [정모 제어실 마스터 초기화 구동부]
+// ==========================================
+// 🏟️ 정모 개별 제어실 (session.html) 엔진
+// ==========================================
 window.initSessionPage = function() {
     const urlParams = new URLSearchParams(window.location.search);
     targetSessionId = urlParams.get('id');
@@ -75,24 +136,18 @@ window.initSessionPage = function() {
         let sessionData = snapshot.val();
         if (!sessionData) return;
         currentActiveSession = sessionData;
-        
-        // 🔥 서버에 이미 세이브된 참석 명단이 있다면 체크박스 상태 강제 실시간 복원 동기화
         if (sessionData.attendees) {
             selectedPlayerIds = new Set(sessionData.attendees);
             const cnt = document.getElementById('checkedCount');
             if (cnt) cnt.innerText = selectedPlayerIds.size;
         }
-
-        // 셀렉트 박스 코트 수 수치 복원
         const selectC = document.getElementById('selectCourts');
-        if (selectC && sessionData.courts) {
-            selectC.value = sessionData.courts;
-        }
+        if (selectC && sessionData.courts) selectC.value = sessionData.courts;
 
         renderSessionViews(sessionData);
         if (sessionData.status === "진행중") {
             buildLiveCourtsDisplay();
-            buildLiveWaitingQueueDisplay(); // 대기열 실시간 추적 드로잉 트리거
+            buildLiveWaitingQueueDisplay();
         }
     });
 
@@ -141,7 +196,6 @@ function renderSessionViews(session) {
     }
 }
 
-// 👥 예정 상태에서 출석 카드를 그리는 드로잉 부부
 function buildAttendanceGrid() {
     const grid = document.getElementById('attendanceGrid');
     if (!grid || !allSystemPlayers || allSystemPlayers.length === 0) return;
@@ -174,14 +228,10 @@ function buildAttendanceGrid() {
     });
 }
 
-// 📋 [신규] 현재 경기 중인 유저와 코트 밖 대기 조인 유저를 실시간으로 구분 분리하는 큐 파인더
 function buildLiveWaitingQueueDisplay() {
     const queueContainer = document.getElementById('liveWaitingContainer');
     if (!queueContainer || !currentActiveSession) return;
-
     const attendeesIds = currentActiveSession.attendees || [];
-    
-    // 현재 활성화된 코트 위에 서 있는 선수 아이디 전수 조사
     const activePlayingIds = new Set();
     if (currentActiveSession.matches) {
         currentActiveSession.matches.forEach(m => {
@@ -191,26 +241,16 @@ function buildLiveWaitingQueueDisplay() {
             }
         });
     }
-
-    // 오늘 참석자 명단 바인딩 루프
     const attendancePlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
-
     queueContainer.innerHTML = attendancePlayers.map(p => {
         const isPlaying = activePlayingIds.has(p.id);
-        
-        // 현재 경기 중이냐 대기 중이냐에 따른 뱃지 분기 처리 기법
         const statusBadge = isPlaying 
             ? `<span class="bg-emerald-100 border border-emerald-200 text-emerald-800 font-black text-[9px] px-1.5 py-0.5 rounded-sm">🎾 경기중</span>`
             : `<span class="bg-blue-600 border border-blue-700 text-white font-black text-[9px] px-1.5 py-0.5 rounded-sm shadow-2xs">⏳ 대기중</span>`;
-        
         const cardBg = isPlaying ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-blue-200 ring-1 ring-blue-500/5";
-
         return `
             <div class="p-2 rounded-xl border flex justify-between items-center text-xs ${cardBg}">
-                <div>
-                    <span class="text-slate-800 font-extrabold text-[11px] block">${p.name}</span>
-                    <span class="text-[9px] font-mono text-slate-400">${p.tier}조 • ${p.displayMmr}점</span>
-                </div>
+                <div><span class="text-slate-800 font-extrabold text-[11px] block">${p.name}</span><span class="text-[9px] font-mono text-slate-400">${p.tier}조 • ${p.displayMmr}점</span></div>
                 ${statusBadge}
             </div>
         `;
@@ -220,7 +260,6 @@ function buildLiveWaitingQueueDisplay() {
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
     if (!container || !currentActiveSession || !targetSessionId) return;
-
     const totalCourtsCount = currentActiveSession.courts || 1;
     if (!currentActiveSession.matches) {
         currentActiveSession.matches = [];
@@ -228,7 +267,6 @@ function buildLiveCourtsDisplay() {
         set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
         return;
     }
-
     container.innerHTML = currentActiveSession.matches.map((m, idx) => {
         if (!m) return '';
         return `
@@ -246,7 +284,6 @@ function buildLiveCourtsDisplay() {
             </div>
         `;
     }).join('');
-
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
@@ -263,21 +300,12 @@ function generateAutoBalancedMatch(courtIdx) {
             }
         });
     }
-
     const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id));
     let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id));
     const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 4);
-
     while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
-
-    return {
-        status: "LIVE",
-        teamA: [selected[0].id, selected[1].id],
-        teamANames: [selected[0].name, selected[1].name],
-        teamB: [selected[2].id, selected[3].id],
-        teamBNames: [selected[2].name, selected[3].name]
-    };
+    return { status: "LIVE", teamA: [selected[0].id, selected[1].id], teamANames: [selected[0].name, selected[1].name], teamB: [selected[2].id, selected[3].id], teamBNames: [selected[2].name, selected[3].name] };
 }
 
 function openScoreModal(courtIdx) {
@@ -298,7 +326,6 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     const scoreDiff = Math.abs(scoreA - scoreB);
     const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3));
     const baseMmrChange = 15 + bonusWeight;
-
     const winnerTeam = scoreA > scoreB ? 'A' : 'B';
     const winIds = winnerTeam === 'A' ? match.teamA : match.teamB;
     const loseIds = winnerTeam === 'A' ? match.teamB : match.teamA;
@@ -311,7 +338,6 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     set(ref(db, 'players'), allSystemPlayers);
     currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
     set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
-
     alert(` 정산 완료! 승리팀에 +${baseMmrChange}점이 즉시 반영되었습니다.`);
     document.getElementById('scoreModal').style.display = 'none';
 }
@@ -327,46 +353,31 @@ function setupSessionEventListeners() {
             buildAttendanceGrid();
         };
     }
-
-    // 🔥 [신규 수정 조치 1] 중간 데이터 현황 서버 세이브 (상태는 '예정' 유지)
     const btnSave = document.getElementById('btnSaveSetup');
     if (btnSave) {
         btnSave.onclick = function() {
             if (!targetSessionId) return;
             const selectedCourts = parseInt(document.getElementById('selectCourts').value);
             const finalAttendeeList = Array.from(selectedPlayerIds);
-
-            update(ref(db, `sessions/${targetSessionId}`), {
-                courts: selectedCourts,
-                attendees: finalAttendeeList
-            }).then(() => {
-                alert("💾 [예정] 상태를 유지한 채 출석부 명단과 코트 설정이 파이어베이스 서버에 안전하게 가동 저장되었습니다!\n이제 다른 회원들도 대문에서 조회가 가능합니다.");
+            update(ref(db, `sessions/${targetSessionId}`), { courts: selectedCourts, attendees: finalAttendeeList }).then(() => {
+                alert("💾 [예정] 상태를 유지한 채 설정이 저장되었습니다!");
             });
         };
     }
-
-    // 🔥 [신규 수정 조치 2] 리그전 전광판 정식 가동 (상태를 '진행중'으로 격상)
     const btnStart = document.getElementById('btnStartSession');
     if (btnStart) {
         btnStart.onclick = function() {
             if (!targetSessionId) return;
-            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상의 출석자가 확보되어야 매칭 전광판이 성사됩니다!"); return; }
+            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상의 출석자가 필요합니다!"); return; }
             const selectedCourts = parseInt(document.getElementById('selectCourts').value);
             const finalAttendeeList = Array.from(selectedPlayerIds);
-
-            if (confirm("▶️ 준비운동이 끝나셨습니까?\n지금부터 본 정모를 [진행중] 라이브 모드로 전환하고 실시간 대진표를 가동하겠습니다!")) {
-                update(ref(db, `sessions/${targetSessionId}`), {
-                    status: "진행중",
-                    courts: selectedCourts,
-                    attendees: finalAttendeeList
-                });
+            if (confirm("▶️ 라이브 모드로 전환하고 실시간 대진표를 가동하시겠습니까?")) {
+                update(ref(db, `sessions/${targetSessionId}`), { status: "진행중", courts: selectedCourts, attendees: finalAttendeeList });
             }
         };
     }
-
     const btnCancel = document.getElementById('btnCancelModal');
     if (btnCancel) btnCancel.onclick = () => { document.getElementById('scoreModal').style.display = 'none'; };
-
     const btnSubmit = document.getElementById('btnSubmitScore');
     if (btnSubmit) {
         btnSubmit.onclick = () => {
@@ -376,7 +387,6 @@ function setupSessionEventListeners() {
             if (activeModalCourtIndex !== null) processMmrMatchCalculation(activeModalCourtIndex, scoreA, scoreB);
         };
     }
-
     const btnEnd = document.getElementById('btnEndSession');
     if (btnEnd) {
         btnEnd.onclick = function() {
