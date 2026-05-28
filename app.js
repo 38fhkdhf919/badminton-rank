@@ -12,201 +12,109 @@ const firebaseConfig = {
     appId: "YOUR_APP_ID_HERE"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏟️ 정모 실시간 통합 제어 센터</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 select-none">
 
-// 전역 캐싱 변수들
-let allSystemPlayers = [];
-let selectedPlayerIds = new Set();
-
-// 🔥 [신규 핵심] session.html 통합 제어실 메인 초기화 구동 함수
-window.initSessionPage = function() {
-    const currentSessionRef = ref(db, 'currentSession');
-    
-    // 1. 파이어베이스의 현재 정모 상태(currentSession)를 실시간 감시
-    onValue(currentSessionRef, (snapshot) => {
-        let sessionData = snapshot.val();
-        
-        // 만약 서버에 정모 방 자체가 아예 없다면 임시 "예정" 디폴트 뼈대 생성
-        if (!sessionData) {
-            sessionData = {
-                status: "예정",
-                title: "이번주 일요일 정모 리그전",
-                courts: 4
-            };
-        }
-
-        // 2. 정모 상태값에 따른 화면 스위칭(뷰 전환) 처리
-        renderSessionViews(sessionData);
-    });
-
-    // 3. 회원 DB 마스터 리스트 실시간 연동 리스너
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-            allSystemPlayers.sort((a, b) => a.id - b.id);
-        }
-        // 화면에 출석부 그리드 리스트 그리기
-        buildAttendanceGrid();
-    });
-
-    // 4. 이벤트 리스너 바인딩
-    setupSessionEventListeners();
-};
-
-// 🌓 정모 상태에 따라 화면 레이아웃을 켜고 끄는 스위처 함수
-function renderSessionViews(session) {
-    const badge = document.getElementById('statusBadge');
-    const title = document.getElementById('sessionTitle');
-    
-    const vReady = document.getElementById('viewReady');
-    const vLive = document.getElementById('viewLive');
-    const vArchive = document.getElementById('viewArchive');
-
-    title.innerText = `📅 ${session.title || '일요일 정모 리그전'}`;
-    
-    // 모든 뷰단 숨기기 기본 세팅
-    vReady.classList.add('hidden');
-    vLive.classList.add('hidden');
-    vArchive.classList.add('hidden');
-    
-    badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans ";
-
-    if (session.status === "예정") {
-        badge.innerText = "⏳ 정모 대기중 (예정)";
-        badge.classList.add('bg-amber-500/10', 'text-amber-400', 'border-amber-500/30');
-        vReady.classList.remove('hidden'); // 출석체크 판넬 활성화
-    } else if (session.status === "진행중") {
-        badge.innerText = "🔥 실시간 리그전 진행 중";
-        badge.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/30');
-        vLive.classList.remove('hidden'); // 대진표 전광판 활성화
-    } else if (session.status === "종료") {
-        badge.innerText = "📝 정모 마감 완료";
-        badge.classList.add('bg-indigo-500/10', 'text-indigo-400', 'border-indigo-500/30');
-        vArchive.classList.remove('hidden'); // 정산 결과실 활성화
-    }
-}
-
-// 👥 26인 명단을 출석부 카드 버튼 형태로 동적 렌더링하는 함수
-function buildAttendanceGrid() {
-    const grid = document.getElementById('attendanceGrid');
-    if (!grid) return;
-
-    if (allSystemPlayers.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-8 text-slate-600">DB에 등록된 회원이 없습니다. players에서 먼저 등록하세요.</div>`;
-        return;
-    }
-
-    grid.innerHTML = allSystemPlayers.map(p => {
-        const isChecked = selectedPlayerIds.has(p.id);
-        const activeClass = isChecked 
-            ? "bg-indigo-600/30 border-indigo-500 text-white font-bold" 
-            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700";
-        const badgeColor = p.tier === 'A' ? 'text-rose-400' : p.tier === 'B' ? 'text-amber-400' : p.tier === 'C' ? 'text-emerald-400' : 'text-sky-400';
-
-        return `
-            <div data-id="${p.id}" class="player-card p-3 rounded-lg border text-left cursor-pointer transition-all flex justify-between items-center ${activeClass}">
-                <div class="space-y-0.5">
-                    <p class="text-[10px] text-slate-500 font-mono font-normal">ID ${p.id}</p>
-                    <p class="text-xs font-bold font-sans">${p.name}</p>
-                </div>
-                <span class="text-[10px] font-mono font-extrabold px-1.5 py-0.5 bg-slate-900/80 rounded border border-slate-800 ${badgeColor}">${p.tier}조</span>
+    <header class="bg-white border-b border-slate-200 p-4 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span id="statusBadge" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded border border-slate-200">상태 확인 중...</span>
+                <h1 class="text-base font-bold text-slate-900 font-sans" id="sessionTitle">📅 정모 리그전 제어실</h1>
             </div>
-        `;
-    }).join('');
+            <nav class="flex gap-2">
+                <a href="./index.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">🏠 홈 대시보드</a>
+                <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
+            </nav>
+        </div>
+    </header>
 
-    // 각각의 카드 터치 클릭 이벤트 심기
-    document.querySelectorAll('.player-card').forEach(card => {
-        card.addEventListener('click', function() {
-            const pid = parseInt(this.getAttribute('data-id'));
-            if (selectedPlayerIds.has(pid)) {
-                selectedPlayerIds.delete(pid);
-            } else {
-                selectedPlayerIds.add(pid);
-            }
-            document.getElementById('checkedCount').innerText = selectedPlayerIds.size;
-            buildAttendanceGrid(); // 자기 자신 상태 새로고침 리렌더링
-        });
-    });
-}
-
-// 🖱️ 버튼 제어 이벤트 리스너 조립
-function setupSessionEventListeners() {
-    // [전체 선택 / 해제] 토글 기능
-    const btnAll = document.getElementById('btnSelectAll');
-    if (btnAll) {
-        btnAll.addEventListener('click', () => {
-            if (selectedPlayerIds.size === allSystemPlayers.length) {
-                selectedPlayerIds.clear();
-            } else {
-                allSystemPlayers.forEach(p => selectedPlayerIds.add(p.id));
-            }
-            document.getElementById('checkedCount').innerText = selectedPlayerIds.size;
-            buildAttendanceGrid();
-        });
-    }
-
-    // 🔥 [핵심 마스터 스위치] 정모 리그전 시작하기 버튼 클릭 시
-    const btnStart = document.getElementById('btnStartSession');
-    if (btnStart) {
-        btnStart.addEventListener('click', () => {
-            if (selectedPlayerIds.size < 4) {
-                alert("❌ 배드민턴 경기를 성사시키려면 최소 4명 이상의 출석자가 선택되어야 합니다!");
-                return;
-            }
+    <main class="max-w-5xl mx-auto p-4 mt-4">
+        
+        <div id="viewReady" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
-            const finalAttendeeList = Array.from(selectedPlayerIds);
+            <div class="md:col-span-1 space-y-4">
+                <section class="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-sm sticky top-24">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h2 class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider">⚙️ 1. 매칭 환경 설정</h2>
+                        <p class="text-[11px] text-slate-400 mt-0.5">정모 타이틀과 매칭 환경을 입력하세요.</p>
+                    </div>
+                    
+                    <div class="space-y-1.5 text-xs">
+                        <label class="text-slate-600 font-bold">정모 명칭 (타이틀)</label>
+                        <input type="text" id="inputSessionTitle" placeholder="예: 5월 마지막주 일요일 정모" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-medium focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
+                    </div>
 
-            if (confirm(`⚡ 오늘 정모에 총 ${finalAttendeeList.length}명이 출석했습니다.\n[${selectedCourts}개 코트] 규모로 실시간 매칭 리그전을 즉시 가동하시겠습니까?`)) {
-                
-                // 파이어베이스 데이터베이스의 정모방 정보를 '진행중' 상태로 강제 전환 및 데이터 기입
-                const sessionRef = ref(db, 'currentSession');
-                const startData = {
-                    status: "진행중",
-                    title: "일요일 공식 정모 리그전",
-                    courts: selectedCourts,
-                    attendees: finalAttendeeList,
-                    createdAt: Date.now()
-                };
+                    <div class="space-y-1.5 text-xs">
+                        <label class="text-slate-600 font-bold">사용 가능 코트 수</label>
+                        <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
+                            <option value="1">1 개 코트 (최소 4명 필요)</option>
+                            <option value="2">2 개 코트 (최소 8명 필요)</option>
+                            <option value="3">3 개 코트 (최소 12명 필요)</option>
+                            <option value="4" selected>4 개 코트 (최소 16명 필요)</option>
+                        </select>
+                    </div>
 
-                set(sessionRef, startData)
-                    .then(() => {
-                        alert("🚀 리그전이 성공적으로 개설되었습니다! 라이브 전광판 시스템으로 자동 스위칭됩니다.");
-                    })
-                    .catch((err) => {
-                        alert("서버 통신 실패: " + err);
-                    });
+                    <div class="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1 text-[11px] text-slate-500 leading-relaxed font-sans">
+                        <p class="text-slate-700 font-bold">💡 실전 운영 가이드</p>
+                        <p>우측 명단에서 오늘 체육관에 출석한 회원들을 체크해 주세요. 지정하신 정모 이름은 대문 대시보드와 과거 기록실에 그대로 영구 박제됩니다.</p>
+                    </div>
+
+                    <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg text-xs transition cursor-pointer flex justify-center items-center gap-1.5">
+                        ▶️ 정모 매칭 리그전 시작하기
+                    </button>
+                </section>
+            </div>
+
+            <div class="md:col-span-2">
+                <section class="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-sm">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div>
+                            <h2 class="text-sm font-bold text-slate-800">👥 2. 오늘 정모 참석자 출석부</h2>
+                            <p class="text-[11px] text-slate-400 mt-0.5">선택된 인원: <span id="checkedCount" class="text-indigo-600 font-bold font-mono">0</span>명</p>
+                        </div>
+                        <button id="btnSelectAll" class="text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer font-medium shadow-xs">전체 선택 / 해제</button>
+                    </div>
+
+                    <div id="attendanceGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[600px] overflow-y-auto pr-1">
+                        <div class="col-span-full py-12 text-center text-slate-400 text-xs font-sans">회원 데이터를 가져오는 중...</div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div id="viewLive" class="hidden grid grid-cols-1 gap-6">
+            <div class="bg-white rounded-xl border border-slate-200 p-8 text-center shadow-sm">
+                <h2 class="text-xl font-extrabold text-emerald-600">🔥 실시간 경기 매칭 리그 진행 중</h2>
+                <p class="text-xs text-slate-500 mt-2 font-sans" id="liveSessionNameDisplay">정모 이름 불러오는 중...</p>
+                <div class="mt-4 p-4 bg-slate-50 rounded-lg text-xs text-slate-400 border border-slate-100">
+                    곧이어 1순위 핵심 연산 기능인 코트별 실시간 대진표 매칭 패널이 이곳에 쫙 배치됩니다!
+                </div>
+            </div>
+        </div>
+
+        <div id="viewArchive" class="hidden text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm">
+            <h2 class="text-lg font-bold text-indigo-600">📝 정모 세션 마감 완료 (기록실)</h2>
+            <p class="text-xs text-slate-500 mt-2 font-sans">과거 아카이브 조회 전용 무대입니다.</p>
+        </div>
+
+    </main>
+
+    <script type="module">
+        import "./app.js";
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof window.initSessionPage === 'function') {
+                window.initSessionPage();
             }
         });
-    }
-}
-
-// [기존 1단계 하위 호환성 뼈대 유지]
-let currentCachedPlayers = [];
-window.listenToPlayers = function(callback) {
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        let playersList = [];
-        if (data) playersList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-        playersList.sort((a, b) => a.id - b.id);
-        currentCachedPlayers = playersList;
-        if (typeof callback === 'function') callback(playersList);
-    });
-};
-window.addNewPlayerToServer = function(name, age, tier, successCallback) {
-    let maxId = 0;
-    if (currentCachedPlayers.length > 0) maxId = Math.max(...currentCachedPlayers.map(p => p.id));
-    const nextId = maxId + 1;
-    const targetIndex = currentCachedPlayers.length;
-    const newPlayerData = { id: nextId, name, age, tier, displayMmr: 1000, matchMmr: 1000, matchesPlayed: 0, streak: 0 };
-    set(ref(db, `players/${targetIndex}`), newPlayerData).then(() => {
-        alert(`🎉 [ID: ${nextId}] ${name} 회원이 서버에 성공적으로 등록되었습니다!`);
-        if (typeof successCallback === 'function') successCallback();
-    });
-};
+    </script>
+</body>
+</html>
 
 console.log("✍️ app.js: 신규 유저 생성 트래커 모듈 준비 끝.");
