@@ -15,44 +15,33 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 전역 캐시 포인터들
 let allSystemPlayers = [];
 let selectedPlayerIds = new Set();
-let targetSessionId = null;       // 🔥 현재 추적 중인 정모의 고유 방 ID (?id= 수신값)
+let targetSessionId = null;       
 let currentActiveSession = null;
 let activeModalCourtIndex = null;
 
-// ==========================================
-// 🏢 [신규] 대문 대시보드 (index.html) 제어 엔진
-// ==========================================
+// [대문 대시보드 스캔 리스너]
 window.initDashboardPage = function() {
-    console.log("🏠 대시보드 스캔 가동...");
-    
-    // 1. 파이어베이스의 멀티 정모 데이터창고(sessions) 실시간 스캔 리스너
     const sessionsRef = ref(db, 'sessions');
     onValue(sessionsRef, (snapshot) => {
         const data = snapshot.val();
         const container = document.getElementById('sessionListContainer');
         if (!container) return;
-
         if (!data) {
-            container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다. 왼쪽에서 일요일 첫 정모를 개설해 보세요!</div>`;
+            container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다.</div>`;
             return;
         }
-
-        // 오브젝트를 역순(최신순) 배열로 조립
         const sessionEntries = Object.entries(data).reverse();
-        
         container.innerHTML = sessionEntries.map(([id, s]) => {
             let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
             if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
             if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
-
             return `
-                <a href="./session.html?id=${id}" class="block bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-400 hover:shadow-md transition-all flex justify-between items-center">
+                <a href="./session.html?id=${id}" class="block bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-400 transition-all flex justify-between items-center">
                     <div class="space-y-1">
                         <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
-                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 설정 코트 수: ${s.courts || 4}개</p>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 오늘 참여자: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개</p>
                     </div>
                     <span class="text-xs font-bold px-2.5 py-1 rounded border ${badgeStyle}">${s.status}</span>
                 </a>
@@ -60,69 +49,53 @@ window.initDashboardPage = function() {
         }).join('');
     });
 
-    // 2. 신규 정모 폼 개설 서브밋 처리
     const form = document.getElementById('createSessionForm');
     if (form) {
         form.onsubmit = function(e) {
             e.preventDefault();
             const title = document.getElementById('newSessionTitle').value.trim();
-            
-            // 날짜 기반 고유 문자열 ID 발급 (예: 20260528_1120)
             const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const date = String(now.getDate()).padStart(2, '0');
-            const timeKey = `${year}${month}${date}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-
-            const newSessionData = {
-                status: "예정",
-                title: title,
-                courts: 4,
-                createdAt: Date.now()
-            };
-
-            set(ref(db, `sessions/${timeKey}`), newSessionData)
-                .then(() => {
-                    alert(`🎉 [${title}] 정모방이 정상적으로 개설되었습니다!`);
-                    document.getElementById('newSessionTitle').value = '';
-                });
+            const timeKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            set(ref(db, `sessions/${timeKey}`), { status: "예정", title: title, courts: 4, createdAt: Date.now() }).then(() => {
+                alert(`🎉 [${title}] 정모방이 정상 개설되었습니다!`);
+                document.getElementById('newSessionTitle').value = '';
+            });
         };
     }
 };
 
-// ==========================================
-// 🏟️ [고도화] 정모 개별 제어실 (session.html) 엔진
-// ==========================================
+// [정모 제어실 마스터 초기화 구동부]
 window.initSessionPage = function() {
-    // 주소창 파라미터에서 ?id= 값 파싱 추출
     const urlParams = new URLSearchParams(window.location.search);
     targetSessionId = urlParams.get('id');
+    if (!targetSessionId) { window.location.href = "./index.html"; return; }
 
-    if (!targetSessionId) {
-        alert("❌ 올바른 정모 코드가 전달되지 않았습니다. 메인 대문에서 정모를 선택하세요!");
-        window.location.href = "./index.html";
-        return;
-    }
-
-    console.log(`🏟️ 타겟 정모 추적 리스너 파이프 온 : ${targetSessionId}`);
-    
-    // 1. 특정 타겟 정모 고유방 실시간 정밀 타겟 리스너 바인딩
     const specificSessionRef = ref(db, `sessions/${targetSessionId}`);
     onValue(specificSessionRef, (snapshot) => {
         let sessionData = snapshot.val();
-        if (!sessionData) {
-            alert("존재하지 않는 정모 세션입니다.");
-            window.location.href = "./index.html";
-            return;
-        }
+        if (!sessionData) return;
         currentActiveSession = sessionData;
+        
+        // 🔥 서버에 이미 세이브된 참석 명단이 있다면 체크박스 상태 강제 실시간 복원 동기화
+        if (sessionData.attendees) {
+            selectedPlayerIds = new Set(sessionData.attendees);
+            const cnt = document.getElementById('checkedCount');
+            if (cnt) cnt.innerText = selectedPlayerIds.size;
+        }
+
+        // 셀렉트 박스 코트 수 수치 복원
+        const selectC = document.getElementById('selectCourts');
+        if (selectC && sessionData.courts) {
+            selectC.value = sessionData.courts;
+        }
+
         renderSessionViews(sessionData);
         if (sessionData.status === "진행중") {
             buildLiveCourtsDisplay();
+            buildLiveWaitingQueueDisplay(); // 대기열 실시간 추적 드로잉 트리거
         }
     });
 
-    // 2. 유저 마스터 동기화 리스너
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
         const data = snapshot.val();
@@ -142,36 +115,106 @@ function renderSessionViews(session) {
     const vReady = document.getElementById('viewReady');
     const vLive = document.getElementById('viewLive');
     const vArchive = document.getElementById('viewArchive');
-
     if (!badge || !title || !vReady || !vLive || !vArchive) return;
 
     const finalTitle = session.title || "일요일 정모 리그전";
     title.innerText = `📅 ${finalTitle}`;
-    
-    const liveDisplay = document.getElementById('liveSessionNameDisplay');
-    if (liveDisplay) liveDisplay.innerText = `🏆 현재 진행 중인 세션 : ${finalTitle}`;
-    
-    const archiveDisplay = document.getElementById('archiveSessionNameDisplay');
-    if (archiveDisplay) archiveDisplay.innerText = `📁 정모 공식 명칭 : ${finalTitle}`;
+    if (document.getElementById('liveSessionNameDisplay')) document.getElementById('liveSessionNameDisplay').innerText = `🏆 현재 진행 중인 세션 : ${finalTitle}`;
+    if (document.getElementById('archiveSessionNameDisplay')) document.getElementById('archiveSessionNameDisplay').innerText = `📁 정모 공식 명칭 : ${finalTitle}`;
 
     vReady.style.display = 'none';
     vLive.style.display = 'none';
     vArchive.style.display = 'none';
-    badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans ";
 
     if (session.status === "진행중") {
         badge.innerText = "🔥 라이브 진행 중";
-        badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-emerald-50 text-emerald-700 border-emerald-200";
         vLive.style.display = 'grid';
     } else if (session.status === "종료") {
         badge.innerText = "📝 정모 마감 완료";
-        badge.classList.add('bg-indigo-50', 'text-indigo-700', 'border-indigo-200');
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-indigo-50 text-indigo-700 border-indigo-200";
         vArchive.style.display = 'block';
     } else {
         badge.innerText = "⏳ 정모 대기중 (예정)";
-        badge.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-200');
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-amber-50 text-amber-700 border-amber-200";
         vReady.style.display = 'grid';
     }
+}
+
+// 👥 예정 상태에서 출석 카드를 그리는 드로잉 부부
+function buildAttendanceGrid() {
+    const grid = document.getElementById('attendanceGrid');
+    if (!grid || !allSystemPlayers || allSystemPlayers.length === 0) return;
+
+    grid.innerHTML = allSystemPlayers.map(p => {
+        const isChecked = selectedPlayerIds.has(p.id);
+        const activeClass = isChecked ? "bg-indigo-50 border-indigo-50 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50";
+        const badgeColor = p.tier === 'A' ? 'bg-rose-50 text-rose-600 border-rose-100' : p.tier === 'B' ? 'bg-amber-50 text-amber-600 border-amber-100' : p.tier === 'C' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-sky-50 text-sky-600 border-sky-100';
+
+        return `
+            <div data-id="${p.id}" class="player-card p-3.5 rounded-xl border text-left cursor-pointer transition-all flex justify-between items-center shadow-xs ${activeClass}">
+                <div class="space-y-0.5">
+                    <p class="text-[10px] text-slate-400 font-mono font-medium">ID ${String(p.id).padStart(2, '0')}</p>
+                    <p class="text-xs font-bold font-sans">${p.name}</p>
+                </div>
+                <span class="text-[10px] font-sans font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${p.tier}조</span>
+            </div>
+        `;
+    }).join('');
+
+    document.querySelectorAll('.player-card').forEach(card => {
+        card.onclick = function() {
+            const pid = parseInt(this.getAttribute('data-id'));
+            if (selectedPlayerIds.has(pid)) selectedPlayerIds.delete(pid);
+            else selectedPlayerIds.add(pid);
+            const cnt = document.getElementById('checkedCount');
+            if (cnt) cnt.innerText = selectedPlayerIds.size;
+            buildAttendanceGrid();
+        };
+    });
+}
+
+// 📋 [신규] 현재 경기 중인 유저와 코트 밖 대기 조인 유저를 실시간으로 구분 분리하는 큐 파인더
+function buildLiveWaitingQueueDisplay() {
+    const queueContainer = document.getElementById('liveWaitingContainer');
+    if (!queueContainer || !currentActiveSession) return;
+
+    const attendeesIds = currentActiveSession.attendees || [];
+    
+    // 현재 활성화된 코트 위에 서 있는 선수 아이디 전수 조사
+    const activePlayingIds = new Set();
+    if (currentActiveSession.matches) {
+        currentActiveSession.matches.forEach(m => {
+            if (m && m.status === "LIVE") {
+                m.teamA.forEach(id => activePlayingIds.add(id));
+                m.teamB.forEach(id => activePlayingIds.add(id));
+            }
+        });
+    }
+
+    // 오늘 참석자 명단 바인딩 루프
+    const attendancePlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
+
+    queueContainer.innerHTML = attendancePlayers.map(p => {
+        const isPlaying = activePlayingIds.has(p.id);
+        
+        // 현재 경기 중이냐 대기 중이냐에 따른 뱃지 분기 처리 기법
+        const statusBadge = isPlaying 
+            ? `<span class="bg-emerald-100 border border-emerald-200 text-emerald-800 font-black text-[9px] px-1.5 py-0.5 rounded-sm">🎾 경기중</span>`
+            : `<span class="bg-blue-600 border border-blue-700 text-white font-black text-[9px] px-1.5 py-0.5 rounded-sm shadow-2xs">⏳ 대기중</span>`;
+        
+        const cardBg = isPlaying ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-blue-200 ring-1 ring-blue-500/5";
+
+        return `
+            <div class="p-2 rounded-xl border flex justify-between items-center text-xs ${cardBg}">
+                <div>
+                    <span class="text-slate-800 font-extrabold text-[11px] block">${p.name}</span>
+                    <span class="text-[9px] font-mono text-slate-400">${p.tier}조 • ${p.displayMmr}점</span>
+                </div>
+                ${statusBadge}
+            </div>
+        `;
+    }).join('');
 }
 
 function buildLiveCourtsDisplay() {
@@ -179,13 +222,9 @@ function buildLiveCourtsDisplay() {
     if (!container || !currentActiveSession || !targetSessionId) return;
 
     const totalCourtsCount = currentActiveSession.courts || 1;
-    
     if (!currentActiveSession.matches) {
         currentActiveSession.matches = [];
-        for (let i = 0; i < totalCourtsCount; i++) {
-            currentActiveSession.matches.push(generateAutoBalancedMatch(i));
-        }
-        // 타겟팅 된 특정 정모 경로 하부에 대진표 주입
+        for (let i = 0; i < totalCourtsCount; i++) { currentActiveSession.matches.push(generateAutoBalancedMatch(i)); }
         set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
         return;
     }
@@ -193,17 +232,17 @@ function buildLiveCourtsDisplay() {
     container.innerHTML = currentActiveSession.matches.map((m, idx) => {
         if (!m) return '';
         return `
-            <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-4 flex flex-col justify-between">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <span class="text-xs font-black text-indigo-600 font-mono">🏟️ COURT ${idx + 1}</span>
-                    <span class="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold px-1.5 py-0.5 rounded-sm">LIVE 경기 진행 중</span>
+            <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3 flex flex-col justify-between">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                    <span class="text-xs font-black text-indigo-600 font-mono">Stadium COURT ${idx + 1}</span>
+                    <span class="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded font-bold">MATCH LIVE</span>
                 </div>
-                <div class="grid grid-cols-7 gap-1 items-center justify-center py-2 text-center">
-                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">${m.teamANames.join(', ')}</div>
-                    <div class="col-span-1 text-[11px] font-black text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">${m.teamBNames.join(', ')}</div>
+                <div class="grid grid-cols-7 gap-1 items-center justify-center py-1 text-center">
+                    <div class="col-span-3 text-[11px] font-bold text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100">${m.teamANames.join(', ')}</div>
+                    <div class="col-span-1 text-[10px] font-black text-slate-300">VS</div>
+                    <div class="col-span-3 text-[11px] font-bold text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100">${m.teamBNames.join(', ')}</div>
                 </div>
-                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition shadow-xs cursor-pointer">⚖️ 결과 스코어 정산 입력</button>
+                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition cursor-pointer">⚖️ 스코어 정산 입력</button>
             </div>
         `;
     }).join('');
@@ -230,9 +269,7 @@ function generateAutoBalancedMatch(courtIdx) {
     const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 4);
 
-    while (selected.length < 4) {
-        selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 });
-    }
+    while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
 
     return {
         status: "LIVE",
@@ -247,7 +284,7 @@ function openScoreModal(courtIdx) {
     const match = currentActiveSession.matches[courtIdx];
     if (!match) return;
     activeModalCourtIndex = courtIdx;
-    document.getElementById('modalCourtTitle').innerText = `🏟️ 제 ${courtIdx + 1}번 코트 경기 결과 정산`;
+    document.getElementById('modalCourtTitle').innerText = ` Stadium 코트 ${courtIdx + 1} 결과 정산`;
     document.getElementById('modalTeamANames').innerText = match.teamANames.join(', ');
     document.getElementById('modalTeamBNames').innerText = match.teamBNames.join(', ');
     document.getElementById('scoreA').value = 0;
@@ -275,41 +312,8 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
     set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
 
-    alert(`✅ 정산 완료! 승리팀에 +${baseMmrChange}점이 즉시 반영되었습니다.`);
+    alert(` 정산 완료! 승리팀에 +${baseMmrChange}점이 즉시 반영되었습니다.`);
     document.getElementById('scoreModal').style.display = 'none';
-}
-
-function buildAttendanceGrid() {
-    const grid = document.getElementById('attendanceGrid');
-    if (!grid) return;
-    if (!allSystemPlayers || allSystemPlayers.length === 0) return;
-
-    grid.innerHTML = allSystemPlayers.map(p => {
-        const isChecked = selectedPlayerIds.has(p.id);
-        const activeClass = isChecked ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50/80 hover:border-slate-300";
-        const badgeColor = p.tier === 'A' ? 'bg-rose-50 text-rose-600 border-rose-100' : p.tier === 'B' ? 'bg-amber-50 text-amber-600 border-amber-100' : p.tier === 'C' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-sky-50 text-sky-600 border-sky-100';
-
-        return `
-            <div data-id="${p.id}" class="player-card p-3.5 rounded-xl border text-left cursor-pointer transition-all flex justify-between items-center shadow-xs ${activeClass}">
-                <div class="space-y-0.5">
-                    <p class="text-[10px] text-slate-400 font-mono font-medium">ID ${String(p.id).padStart(2, '0')}</p>
-                    <p class="text-xs font-bold font-sans">${p.name}</p>
-                </div>
-                <span class="text-[10px] font-sans font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${p.tier}조</span>
-            </div>
-        `;
-    }).join('');
-
-    document.querySelectorAll('.player-card').forEach(card => {
-        card.onclick = function() {
-            const pid = parseInt(this.getAttribute('data-id'));
-            if (selectedPlayerIds.has(pid)) selectedPlayerIds.delete(pid);
-            else selectedPlayerIds.add(pid);
-            const cnt = document.getElementById('checkedCount');
-            if (cnt) cnt.innerText = selectedPlayerIds.size;
-            buildAttendanceGrid();
-        };
-    });
 }
 
 function setupSessionEventListeners() {
@@ -324,19 +328,39 @@ function setupSessionEventListeners() {
         };
     }
 
-    const btnStart = document.getElementById('btnStartSession');
-    if (btnStart) {
-        btnStart.onclick = function() {
+    // 🔥 [신규 수정 조치 1] 중간 데이터 현황 서버 세이브 (상태는 '예정' 유지)
+    const btnSave = document.getElementById('btnSaveSetup');
+    if (btnSave) {
+        btnSave.onclick = function() {
             if (!targetSessionId) return;
-            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상의 출석자가 필요합니다!"); return; }
             const selectedCourts = parseInt(document.getElementById('selectCourts').value);
             const finalAttendeeList = Array.from(selectedPlayerIds);
 
             update(ref(db, `sessions/${targetSessionId}`), {
-                status: "진행중",
                 courts: selectedCourts,
                 attendees: finalAttendeeList
+            }).then(() => {
+                alert("💾 [예정] 상태를 유지한 채 출석부 명단과 코트 설정이 파이어베이스 서버에 안전하게 가동 저장되었습니다!\n이제 다른 회원들도 대문에서 조회가 가능합니다.");
             });
+        };
+    }
+
+    // 🔥 [신규 수정 조치 2] 리그전 전광판 정식 가동 (상태를 '진행중'으로 격상)
+    const btnStart = document.getElementById('btnStartSession');
+    if (btnStart) {
+        btnStart.onclick = function() {
+            if (!targetSessionId) return;
+            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상의 출석자가 확보되어야 매칭 전광판이 성사됩니다!"); return; }
+            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
+            const finalAttendeeList = Array.from(selectedPlayerIds);
+
+            if (confirm("▶️ 준비운동이 끝나셨습니까?\n지금부터 본 정모를 [진행중] 라이브 모드로 전환하고 실시간 대진표를 가동하겠습니다!")) {
+                update(ref(db, `sessions/${targetSessionId}`), {
+                    status: "진행중",
+                    courts: selectedCourts,
+                    attendees: finalAttendeeList
+                });
+            }
         };
     }
 
