@@ -1,35 +1,48 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// 관리자님의 파이어베이스 실제 정보로 교체 필수!
+// 관리자님의 파이어베이스 주소 및 키 (싱가포르 주소 유지)
 const firebaseConfig = {
-      apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
-      authDomain: "badminton-live-rank.firebaseapp.com",
-      databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "badminton-live-rank",
-      storageBucket: "badminton-live-rank.firebasestorage.app",
-      messagingSenderId: "803402263930",
-      appId: "1:803402263930:web:ebe85b833a86d6acd33ac3",
-      measurementId: "G-SE2PTKXVDJ"
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "YOUR_AUTH_DOMAIN_HERE",
+    databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app", 
+    projectId: "YOUR_PROJECT_ID_HERE",
+    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
+    appId: "YOUR_APP_ID_HERE"
 };
 
-// 파이어베이스 및 리얼타임 DB 초기화
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// index.html에서 서버 연결 상태를 모니터링할 수 있도록 실시간 리스너 함수 정의
+// [기존 코드] 연결 테스트 리스너
 window.checkServerConnection = function(callback) {
-    // 파이어베이스 DB의 'connectionTest' 경로를 바라봄
     const testRef = ref(db, 'connectionTest');
-    
-    // 해당 경로의 값이 바뀌면 브라우저 화면에 실시간으로 신호를 쏴줌
     onValue(testRef, (snapshot) => {
         const data = snapshot.val();
         callback(data);
-    }, (error) => {
-        console.error("파이어베이스 연결 실패 에러 원인:", error);
-        callback("CONNECTION_ERROR");
     });
 };
 
-console.log("📡 app.js: 파이어베이스 연결 리스너 스크립트 대기 중...");
+// 🔥 [신규 추가] 26명 명단 데이터를 파이어베이스 서버에 최초 업로드하는 함수
+window.uploadMasterPlayers = function() {
+    // 깃허브에 함께 올려둔 players.json 파일을 읽어옵니다.
+    fetch('./players.json')
+        .then(response => response.json())
+        .then(data => {
+            // 파이어베이스 DB의 'players' 라는 경로에 26명 데이터를 통째로 덮어씁니다.
+            set(ref(db, 'players'), data)
+                .then(() => {
+                    alert("🚀 26명 마스터 명단이 파이어베이스 서버에 완벽하게 업로드되었습니다!");
+                    location.reload(); // 성공 후 화면 새로고침
+                })
+                .catch(error => {
+                    alert("❌ 업로드 실패: " + error);
+                });
+        })
+        .catch(err => {
+            alert("❌ players.json 파일을 읽어오는데 실패했습니다: " + err);
+        });
+};
+
+console.log("💾 app.js: 마스터 명단 동기화 엔진 대기 중...");
