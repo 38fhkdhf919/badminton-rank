@@ -63,31 +63,164 @@ window.renderSessionViews = function(session) {
 };
 
 // ==========================================
-// 🎲 밸런스 매칭 알고리즘 및 코트 제어 엔진
+// 🚀 [기획 이식 핵심] 관리자 표 다중 스탯 스캔 + 1사이클 홀딩 알고리즘
 // ==========================================
 function generateAutoBalancedMatch(courtIdx) {
     const attendeesIds = currentActiveSession.attendees || [];
-    const injuredList = currentActiveSession.injuredPlayers || []; 
+    const injuredList = currentActiveSession.injuredPlayers || [];
+    const historyLog = currentActiveSession.historyLog || []; // 역대 경기 이력 배열 트랙 데이터
+    const totalCourtsCount = currentActiveSession.courts || 1;
+
+    // 1. 현재 모든 코트 위에서 게임을 뛰고 있는 선수 ID 수집 (중복 진입 원천 차단)
     const activePlayingIds = new Set();
-    
     if (currentActiveSession && currentActiveSession.matches) {
         currentActiveSession.matches.forEach(m => {
-            if (m && m.status === "LIVE") { 
-                m.teamA.forEach(id => activePlayingIds.add(id)); 
-                m.teamB.forEach(id => activePlayingIds.add(id)); 
+            if (m && m.status === "LIVE") {
+                m.teamA.forEach(id => activePlayingIds.add(id));
+                m.teamB.forEach(id => activePlayingIds.add(id));
             }
         });
     }
 
-    const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
-    let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
-    const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, 4);
+    // 2. 1차 대기열 필터링 및 점수 기반 정렬 (줄 세우기)
+    // 오늘 참여자 중 현재 뛰고 있지 않고 부상자가 아닌 '찐 대기자' 수집
+    let waitingPool = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
+
+    if (waitingPool.length < 4) {
+        // 도저히 인원이 안 되면 전체 참여자 풀에서 부상자만 빼고 강제 차출
+        waitingPool = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
+    }
+
+    // 🔥 [정렬 규칙] 오늘 게임 판수가 적은 사람 우선 ➔ 쉰 지 오래된 사람 (ID 역순 등으로 간접 정렬 보정)
+    waitingPool.sort((a, b) => {
+        const statsA = sessionMmrStatsMap[a.id] || { win: 0, lose: 0, delta: 0 };
+        const statsB = sessionMmrStatsMap[b.id] || { win: 0, lose: 0, delta: 0 };
+        const playedA = statsA.win + statsA.lose;
+        const playedB = statsB.win + statsB.lose;
+        
+        if (playedA !== playedB) return playedA - playedB; // 1순위: 판수 적은 사람 우선
+        return b.id - a.id; // 2순위: 셔플 분배용
+    });
+
+    // 3. 최근 승률 단기 페이스를 기반으로 보정된 보이지 않는 '매칭용 임시 MMR' 산정
+    const getAdjustedMmr = (p) => {
+        const stats = sessionMmrStatsMap[p.id] || { win: 0, lose: 0, delta: 0 };
+        const total = stats.win + stats.lose;
+        if (total === 0) return p.matchMmr;
+        const winRate = stats.win / total;
+        
+        // 최근 기세가 좋으면(승률 60% 초과) 임시 레이팅 매칭 능력치를 버프하여 상위 매치로 상향 가중치 조정
+        if (winRate >= 0.6) return p.matchMmr + 70;
+        if (winRate <= 0.4) return Math.max(600, p.matchMmr - 70); // 페이스 다운 시 하향 조정
+        return p.matchMmr;
+    };
+
+    // 4. 대기열 위에서부터 내려가며 최적의 4인 조합 훑기 (다중 스캔 가동)
+    let bestFour = [];
+    let foundPerfectMatch = false;
+
+    // 대기열 맨 앞의 최우선 순위 대기자 확정 지정
+    const masterLeader = waitingPool[0];
+
+    // 마스터 리더를 제외한 나머지 인원들 중 조합 탐색
+    const candidates = waitingPool.slice(1);
+
+    // 직전 1경기 안에서 마스터 리더와 같이 편/적으로 만났던 동반 플레이어 ID 목록 발라내기
+    const lastMatch = historyLog.length > 0 ? historyLog[historyLog.length - 1] : null;
+    const directPastIds = lastMatch ? [...lastMatch.teamA, ...lastMatch.teamB] : [];
+
+    // 중첩 반복문으로 나머지 3자리 최적의 파트너 매칭 조합 스캔
+    for (let i = 0; i < candidates.length - 2; i++) {
+        for (let j = i + 1; j < candidates.length - 1; j++) {
+            for (let k = j + 1; k < candidates.length; k++) {
+                const p2 = candidates[i];
+                const p3 = candidates[j];
+                const p4 = candidates[k];
+                const combo = [masterLeader, p2, p3, p4];
+
+                // 필터 A: 직전 1경기를 같이 게임한 플레이어가 겹치는지 체크
+                let hasRecentOverlap = false;
+                if (lastMatch && directPastIds.includes(masterLeader.id)) {
+                    // 리더가 직전 판을 뛰었다면, 같이 뛰었던 사람이 이 조합에 포함되어 있는지 검증
+                    const overlapCount = combo.filter(p => directPastIds.includes(p.id)).length;
+                    if (overlapCount >= 2) hasRecentOverlap = true; // 2명 이상 중복 시 리벤지 중복 매치 차단
+                }
+
+                // 필터 B: 4명의 보정 MMR 실력 편차 검증 (고수와 초심의 대참사 갭 방어)
+                const mmrs = combo.map(p => getAdjustedMmr(p));
+                const maxMmr = Math.max(...mmrs);
+                const minMmr = Math.min(...mmrs);
+                const mmrGap = maxMmr - minMmr;
+
+                // 실력차가 적당하고 직전 경기 중복이 아니면 황금 대진 조합으로 즉시 선택 낙점!
+                if (!hasRecentOverlap && mmrGap <= 320) {
+                    bestFour = combo;
+                    foundPerfectMatch = true;
+                    break;
+                }
+            }
+            if (foundPerfectMatch) break;
+        }
+        if (foundPerfectMatch) break;
+    }
+
+    // 5. 🛑 [기획의 핵심] 1사이클 조건부 홀딩 예약 제어 로직 가동
+    // 만약 완벽한 조건의 4인이 안 튀어나왔을 때, 의도적으로 홀딩
+    if (!foundPerfectMatch) {
+        // 현재 이 방에 누적된 홀딩 카운트 스캔 (없으면 기화)
+        if (!currentActiveSession.holdCountMap) currentActiveSession.holdCountMap = {};
+        const currentHold = currentActiveSession.holdCountMap[masterLeader.id] || 0;
+
+        // 홀딩 한계선 마지노선: 최대 1사이클 (현재 돌아가는 코트 개수만큼 경기수가 지나갈 때까지)
+        if (currentHold < totalCourtsCount && waitingPool.length > 4) {
+            console.log(`⏳ 홀딩 발동: [${masterLeader.name}] 회원의 최우선 대진 상대를 찾기 위해 1경기 대기 홀딩 락을 겁니다. (현재 ${currentHold}/${totalCourtsCount} 사이클 대기 중)`);
+            
+            // 카운트 1 올리고 서버 저장
+            currentActiveSession.holdCountMap[masterLeader.id] = currentHold + 1;
+            
+            // 이번 턴은 리더를 건너뛰고, 대기열 다음 순번의 4명으로 우회해서 임시 대진을 짜 줍니다.
+            const alternativePool = waitingPool.slice(1);
+            if (alternativePool.length >= 4) {
+                bestFour = alternativePool.slice(0, 4);
+            } else {
+                bestFour = waitingPool.slice(0, 4); // 정 인원이 없으면 홀딩 해제하고 즉시 출전
+            }
+        } else {
+            // 1사이클 마지노선이 끝났거나 인원이 한정되어 더 뺄 사람이 없다면 강제 잠금 해제하여 출전 처리
+            if (currentActiveSession.holdCountMap) {
+                currentActiveSession.holdCountMap[masterLeader.id] = 0; // 카운트 리셋
+            }
+            bestFour = waitingPool.slice(0, 4);
+        }
+    } else {
+        // 황금 조합을 찾았다면 홀딩 맵 초기화
+        if (currentActiveSession.holdCountMap && currentActiveSession.holdCountMap[masterLeader.id]) {
+            currentActiveSession.holdCountMap[masterLeader.id] = 0;
+        }
+    }
+
+    // 최소 인원 4명 더미 충원 방어선
+    while (bestFour.length < 4) {
+        bestFour.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 });
+    }
+
+    // 6. 확정된 최종 4인 내부에서 점수 합이 가장 팽팽한 팀 반분(팀 찢기) 밸런싱 실행
+    bestFour.sort((a, b) => getAdjustedMmr(b) - getAdjustedMmr(a)); // 보정 레이팅 높은 순 정렬
     
-    while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
-    return { status: "LIVE", teamA: [selected[0].id, selected[1].id], teamANames: [selected[0].name, selected[1].name], teamB: [selected[2].id, selected[3].id], teamBNames: [selected[2].name, selected[3].name] };
+    // 1등+4등(고수+초심) vs 2등+3등(중수+중수) 팀 스와핑 찢기 기법 적용
+    const teamA = [bestFour[0].id, bestFour[3].id];
+    const teamANames = [bestFour[0].name, bestFour[3].name];
+    const teamB = [bestFour[1].id, bestFour[2].id];
+    const teamBNames = [bestFour[1].name, bestFour[2].name];
+
+    return {
+        status: "LIVE",
+        teamA, teamANames,
+        teamB, teamBNames
+    };
 }
 
+// 🏟️ 실시간 코트 대진표 출력 및 내 경기 하이라이트 매핑
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
     if (!container || !currentActiveSession || !targetSessionId) return;
@@ -131,29 +264,7 @@ function buildLiveCourtsDisplay() {
     });
 }
 
-function openScoreModal(courtIdx) {
-    const match = currentActiveSession.matches[courtIdx];
-    if (!match) return;
-    activeModalCourtIndex = courtIdx;
-    document.getElementById('modalCourtTitle').innerText = ` Stadium 코트 ${courtIdx + 1} 결과 정산`;
-    document.getElementById('modalTeamANames').innerText = match.teamANames.join(', ');
-    document.getElementById('modalTeamBNames').innerText = match.teamBNames.join(', ');
-    document.getElementById('scoreA').value = 0;
-    document.getElementById('scoreB').value = 0;
-    
-    const scoreNotice = document.getElementById('modalAdminOnlyNotice');
-    const submitBtn = document.getElementById('btnSubmitScore');
-    if (!isSessionAdminMode) {
-        if(scoreNotice) scoreNotice.classList.remove('hidden');
-        if(submitBtn) { submitBtn.style.display = 'none'; }
-    } else {
-        if(scoreNotice) scoreNotice.classList.add('hidden');
-        if(submitBtn) { submitBtn.style.display = 'block'; }
-    }
-    document.getElementById('scoreModal').style.display = 'flex';
-}
-
-// 🔥 [누락 복원 핵심] 실시간 스코어 수치 기반 MMR 부스터 정산 연산 함수 본문
+// 경기 결과 처리 점수 연산
 function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     if (!isSessionAdminMode) { alert("권한 거부"); return; }
     if (!targetSessionId) return;
@@ -169,11 +280,9 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     allSystemPlayers.forEach(p => {
         if (winIds.includes(p.id) || loseIds.includes(p.id)) {
             p.matchesPlayed += 1;
-            
             if (!sessionMmrStatsMap[p.id]) {
                 sessionMmrStatsMap[p.id] = { win: 0, lose: 0, delta: 0 };
             }
-
             if (winIds.includes(p.id)) {
                 p.displayMmr += baseMmrChange; p.matchMmr += baseMmrChange;
                 sessionMmrStatsMap[p.id].win += 1;
@@ -186,21 +295,32 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
         }
     });
 
+    // 경기 이력 로그 생성 (역대 리벤지 매치 중복 차단 추적용)
+    let historyLog = currentActiveSession.historyLog ? [...currentActiveSession.historyLog] : [];
+    historyLog.push({
+        court: courtIdx + 1,
+        teamA: match.teamA,
+        teamB: match.teamB,
+        timestamp: Date.now()
+    });
+
     set(ref(db, 'players'), allSystemPlayers);
+    
+    // 다음 경기할 4인 자동 수급 연산
     currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
     
     update(ref(db, `sessions/${targetSessionId}`), {
         matches: currentActiveSession.matches,
-        statsLog: sessionMmrStatsMap
+        statsLog: sessionMmrStatsMap,
+        historyLog: historyLog,
+        holdCountMap: currentActiveSession.holdCountMap || {}
     });
 
-    alert(`🎉 정산 성공! 승리팀에 +${baseMmrChange}점이 반영되었으며, 다음 대진이 배정되었습니다.`);
+    alert(`🎉 정산 성공! 오늘의 득실 점수가 스코어보드에 실시간 가중 반영되었습니다.`);
     document.getElementById('scoreModal').style.display = 'none';
 }
 
-// ==========================================
-// 📊 실시간 성적 및 대기열 화면 처리부
-// ==========================================
+// 📊 실시간 당일 성적표 변동 출력부
 function buildSessionLiveRankTable() {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || !currentActiveSession) return;
@@ -250,7 +370,7 @@ function buildAdminManageLists() {
     attendeesBox.innerHTML = currentAttendees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
             <span class="font-bold text-slate-800">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-kick bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px] cursor-pointer">제외</button>
+            <button data-id="${p.id}" class="btn-admin-kick bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px] cursor-pointer">제외</button>
         </div>
     `).join('');
 
@@ -258,7 +378,7 @@ function buildAdminManageLists() {
     absenteesBox.innerHTML = currentAbsentees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
             <span class="font-medium text-slate-600">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] cursor-pointer">➕ 참석 추가</button>
+            <button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] cursor-pointer">➕ 참석 추가</button>
         </div>
     `).join('');
 
@@ -421,7 +541,7 @@ function setupSessionEventListeners() {
 }
 
 // ==========================================
-// 🏢 개별 제어 마스터 바인딩
+// 🏢 개별 제어 마스터 바인딩 입구
 // ==========================================
 window.initSessionPage = function() {
     const urlParams = new URLSearchParams(window.location.search);
