@@ -14,7 +14,10 @@
                 <div class="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-pulse"></div>
                 <h1 class="text-base font-black text-slate-900">🏸 클럽 통합 메인 통제실</h1>
             </div>
-            <nav class="flex gap-2">
+            <nav class="flex gap-2 items-center">
+                <button id="btnAdminToggle" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1">
+                    🔐 관리자 모드 인증
+                </button>
                 <a href="./index.html" class="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg shadow-2xs">🏠 홈 대시보드</a>
                 <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-6 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-2xs">👥 회원 DB 관리</a>
             </nav>
@@ -46,7 +49,7 @@
             <section class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
                 <div class="border-b border-slate-100 pb-3">
                     <h2 class="text-sm font-bold text-slate-800">📋 정모 운영 리그 타임라인 목록</h2>
-                    <p class="text-[11px] text-slate-400 mt-0.5">아래 목록을 클릭하면 해당 정모의 실시간 제어실(출석부/전광판)로 워프합니다.</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">아래 목록을 클릭하면 해당 정모의 실시간 제어실로 워프합니다.</p>
                 </div>
 
                 <div id="sessionListContainer" class="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
