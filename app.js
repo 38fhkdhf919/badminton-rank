@@ -28,7 +28,7 @@ let clientSelectedMyName = "";
 let sessionMmrStatsMap = {};
 
 // ==========================================
-// 🚨 [오류 완벽 차단] 화면 뷰 제어 스위처 함수 전역 선언부
+// 🚨 화면 뷰 제어 스위처 함수 전역 선언부
 // ==========================================
 window.renderSessionViews = function(session) {
     const badge = document.getElementById('statusBadge');
@@ -43,7 +43,6 @@ window.renderSessionViews = function(session) {
     if (document.getElementById('liveSessionNameDisplay')) document.getElementById('liveSessionNameDisplay').innerText = `🏆 현재 진행 중인 세션 : ${finalTitle}`;
     if (document.getElementById('archiveSessionNameDisplay')) document.getElementById('archiveSessionNameDisplay').innerText = `📁 정모 공식 명칭 : ${finalTitle}`;
 
-    // 전체 안전 숨김 후 선별 노출
     vReady.style.display = 'none';
     vLive.style.display = 'none';
     vArchive.style.display = 'none';
@@ -64,159 +63,30 @@ window.renderSessionViews = function(session) {
 };
 
 // ==========================================
-// 🏢 대문 대시보드 (index.html) 제어 마스터 엔진
+// 🎲 밸런스 매칭 알고리즘 및 코트 제어 엔진
 // ==========================================
-let isAdminMode = false;
-const MASTER_PASSWORD = "1234";
-
-window.initDashboardPage = function() {
-    const sessionsRef = ref(db, 'sessions');
-    onValue(sessionsRef, (snapshot) => {
-        const data = snapshot.val();
-        const container = document.getElementById('sessionListContainer');
-        if (!container) return;
-        if (!data) { container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다.</div>`; return; }
-        const sessionEntries = Object.entries(data).reverse();
-        
-        container.innerHTML = sessionEntries.map(([id, s]) => {
-            let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
-            if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
-            if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
-            const deleteButtonHtml = isAdminMode 
-                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3 cursor-pointer">🗑️ 삭제</button>`
-                : '';
-
-            return `
-                <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-300 transition-all">
-                    <a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1">
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
-                            <span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개</p>
-                    </a>
-                    ${deleteButtonHtml}
-                </div>
-            `;
-        }).join('');
-
-        document.querySelectorAll('.btn-delete-session').forEach(btn => {
-            btn.onclick = function(e) {
-                e.preventDefault();
-                const sid = this.getAttribute('data-id');
-                if (confirm(`정말 해당 정모방(${sid})을 삭제하시겠습니까?`)) {
-                    remove(ref(db, `sessions/${sid}`)).then(() => { if(window.initDashboardPage) window.initDashboardPage(); });
-                }
-            };
-        });
-    });
-
-    const form = document.getElementById('createSessionForm');
-    if (form) {
-        form.onsubmit = function(e) {
-            e.preventDefault();
-            const title = document.getElementById('newSessionTitle').value.trim();
-            const now = new Date();
-            const timeKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-            set(ref(db, `sessions/${timeKey}`), { status: "예정", title: title, courts: 4, createdAt: Date.now() }).then(() => {
-                document.getElementById('newSessionTitle').value = '';
-            });
-        };
-    }
-
-    const toggleBtn = document.getElementById('btnAdminToggle');
-    if (toggleBtn) {
-        toggleBtn.onclick = function() {
-            if (!isAdminMode) {
-                const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
-                if (pw === MASTER_PASSWORD) {
-                    isAdminMode = true;
-                    this.innerText = "🔓 관리자 모드 해제";
-                    this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1";
-                    alert("🔓 관리자 인증 성공!");
-                    if(window.initDashboardPage) window.initDashboardPage();
-                }
-            } else {
-                isAdminMode = false;
-                this.innerText = "🔐 관리자 모드 인증";
-                this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1";
-                if(window.initDashboardPage) window.initDashboardPage();
+function generateAutoBalancedMatch(courtIdx) {
+    const attendeesIds = currentActiveSession.attendees || [];
+    const injuredList = currentActiveSession.injuredPlayers || []; 
+    const activePlayingIds = new Set();
+    
+    if (currentActiveSession && currentActiveSession.matches) {
+        currentActiveSession.matches.forEach(m => {
+            if (m && m.status === "LIVE") { 
+                m.teamA.forEach(id => activePlayingIds.add(id)); 
+                m.teamB.forEach(id => activePlayingIds.add(id)); 
             }
-        };
-    }
-};
-
-// ==========================================
-// 🏟️ 정모 개별 제어실 (session.html) 엔진 
-// ==========================================
-window.initSessionPage = function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    targetSessionId = urlParams.get('id');
-    isSessionAdminMode = urlParams.get('admin') === 'true';
-
-    if (!targetSessionId) { window.location.href = "./index.html"; return; }
-
-    const adminBadge = document.getElementById('adminClientBadge');
-    const adminBtnGroup = document.getElementById('adminButtonGroup');
-    const adminNotice = document.getElementById('adminOnlyLockNotice');
-    const btnSelectAll = document.getElementById('btnSelectAll');
-    const btnEndSession = document.getElementById('btnEndSession');
-    const btnAdminPanelToggle = document.getElementById('btnAdminPanelToggle');
-
-    if (isSessionAdminMode) {
-        if(adminBadge) adminBadge.classList.remove('hidden');
-        if(adminBtnGroup) adminBtnGroup.classList.remove('hidden');
-        if(btnSelectAll) btnSelectAll.classList.remove('hidden');
-        if(btnEndSession) btnEndSession.classList.remove('hidden');
-        if(btnAdminPanelToggle) btnAdminPanelToggle.classList.remove('hidden');
-        if(adminNotice) adminNotice.classList.add('hidden');
+        });
     }
 
-    const specificSessionRef = ref(db, `sessions/${targetSessionId}`);
-    onValue(specificSessionRef, (snapshot) => {
-        let sessionData = snapshot.val();
-        if (!sessionData) return;
-        currentActiveSession = sessionData;
-        
-        if (sessionData.statsLog) {
-            sessionMmrStatsMap = sessionData.statsLog;
-        } else {
-            sessionMmrStatsMap = {};
-        }
-
-        if (sessionData.attendees) {
-            selectedPlayerIds = new Set(sessionData.attendees);
-            const cnt = document.getElementById('checkedCount');
-            if (cnt) cnt.innerText = selectedPlayerIds.size;
-        }
-
-        // 안전하게 글로벌 변동 뷰어 호출 가동
-        window.renderSessionViews(sessionData);
-        
-        if (sessionData.status === "진행중") {
-            buildLiveCourtsDisplay();
-            buildLiveWaitingQueueDisplay(); 
-            buildSessionLiveRankTable();
-        }
-    });
-
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-            allSystemPlayers.sort((a, b) => a.id - b.id);
-        }
-        buildAttendanceGrid();
-        buildIdentityDropdown(); 
-        if (currentActiveSession && currentActiveSession.status === "진행중") {
-            buildSessionLiveRankTable();
-            buildAdminManageLists(); 
-        }
-    });
-
-    setupSessionEventListeners();
-};
+    const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
+    let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
+    const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 4);
+    
+    while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
+    return { status: "LIVE", teamA: [selected[0].id, selected[1].id], teamANames: [selected[0].name, selected[1].name], teamB: [selected[2].id, selected[3].id], teamBNames: [selected[2].name, selected[3].name] };
+}
 
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
@@ -241,7 +111,7 @@ function buildLiveCourtsDisplay() {
             <div class="rounded-2xl border p-4 shadow-sm space-y-3.5 flex flex-col justify-between transition-all duration-300 ${highlightClass}">
                 <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
                     <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-black text-indigo-600 font-mono">🏟️ COURT ${idx + 1}</span>
+                        <span class="text-xs font-black text-indigo-600 font-mono"> Stadium COURT ${idx + 1}</span>
                         ${isMyMatch ? `<span class="bg-amber-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded animate-bounce shadow-2xs">🔥 내 경기!</span>` : ''}
                     </div>
                     <span class="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded">MATCH LIVE</span>
@@ -259,24 +129,6 @@ function buildLiveCourtsDisplay() {
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
-}
-
-function generateAutoBalancedMatch(courtIdx) {
-    const attendeesIds = currentActiveSession.attendees || [];
-    const injuredList = currentActiveSession.injuredPlayers || []; 
-    const activePlayingIds = new Set();
-    if (currentActiveSession && currentActiveSession.matches) {
-        currentActiveSession.matches.forEach(m => {
-            if (m && m.status === "LIVE") { m.teamA.forEach(id => activePlayingIds.add(id)); m.teamB.forEach(id => activePlayingIds.add(id)); }
-        });
-    }
-
-    const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
-    let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
-    const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, 4);
-    while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
-    return { status: "LIVE", teamA: [selected[0].id, selected[1].id], teamANames: [selected[0].name, selected[1].name], teamB: [selected[2].id, selected[3].id], teamBNames: [selected[2].name, selected[3].name] };
 }
 
 function openScoreModal(courtIdx) {
@@ -301,6 +153,54 @@ function openScoreModal(courtIdx) {
     document.getElementById('scoreModal').style.display = 'flex';
 }
 
+// 🔥 [누락 복원 핵심] 실시간 스코어 수치 기반 MMR 부스터 정산 연산 함수 본문
+function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
+    if (!isSessionAdminMode) { alert("권한 거부"); return; }
+    if (!targetSessionId) return;
+    const match = currentActiveSession.matches[courtIdx];
+    const scoreDiff = Math.abs(scoreA - scoreB);
+    const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3));
+    const baseMmrChange = 15 + bonusWeight;
+
+    const winnerTeam = scoreA > scoreB ? 'A' : 'B';
+    const winIds = winnerTeam === 'A' ? match.teamA : match.teamB;
+    const loseIds = winnerTeam === 'A' ? match.teamB : match.teamA;
+
+    allSystemPlayers.forEach(p => {
+        if (winIds.includes(p.id) || loseIds.includes(p.id)) {
+            p.matchesPlayed += 1;
+            
+            if (!sessionMmrStatsMap[p.id]) {
+                sessionMmrStatsMap[p.id] = { win: 0, lose: 0, delta: 0 };
+            }
+
+            if (winIds.includes(p.id)) {
+                p.displayMmr += baseMmrChange; p.matchMmr += baseMmrChange;
+                sessionMmrStatsMap[p.id].win += 1;
+                sessionMmrStatsMap[p.id].delta += baseMmrChange;
+            } else {
+                p.displayMmr = Math.max(600, p.displayMmr - baseMmrChange); p.matchMmr = Math.max(600, p.matchMmr - baseMmrChange);
+                sessionMmrStatsMap[p.id].lose += 1;
+                sessionMmrStatsMap[p.id].delta -= baseMmrChange;
+            }
+        }
+    });
+
+    set(ref(db, 'players'), allSystemPlayers);
+    currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
+    
+    update(ref(db, `sessions/${targetSessionId}`), {
+        matches: currentActiveSession.matches,
+        statsLog: sessionMmrStatsMap
+    });
+
+    alert(`🎉 정산 성공! 승리팀에 +${baseMmrChange}점이 반영되었으며, 다음 대진이 배정되었습니다.`);
+    document.getElementById('scoreModal').style.display = 'none';
+}
+
+// ==========================================
+// 📊 실시간 성적 및 대기열 화면 처리부
+// ==========================================
 function buildSessionLiveRankTable() {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || !currentActiveSession) return;
@@ -350,7 +250,7 @@ function buildAdminManageLists() {
     attendeesBox.innerHTML = currentAttendees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
             <span class="font-bold text-slate-800">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-kick bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px] transition-colors cursor-pointer">제외</button>
+            <button data-id="${p.id}" class="btn-admin-kick bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px] cursor-pointer">제외</button>
         </div>
     `).join('');
 
@@ -358,7 +258,7 @@ function buildAdminManageLists() {
     absenteesBox.innerHTML = currentAbsentees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
             <span class="font-medium text-slate-600">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] transition-colors cursor-pointer">➕ 참석 추가</button>
+            <button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] cursor-pointer">➕ 참석 추가</button>
         </div>
     `).join('');
 
@@ -519,6 +419,77 @@ function setupSessionEventListeners() {
         };
     }
 }
+
+// ==========================================
+// 🏢 개별 제어 마스터 바인딩
+// ==========================================
+window.initSessionPage = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    targetSessionId = urlParams.get('id');
+    isSessionAdminMode = urlParams.get('admin') === 'true';
+
+    if (!targetSessionId) { window.location.href = "./index.html"; return; }
+
+    const adminBadge = document.getElementById('adminClientBadge');
+    const adminBtnGroup = document.getElementById('adminButtonGroup');
+    const adminNotice = document.getElementById('adminOnlyLockNotice');
+    const btnSelectAll = document.getElementById('btnSelectAll');
+    const btnEndSession = document.getElementById('btnEndSession');
+    const btnAdminPanelToggle = document.getElementById('btnAdminPanelToggle');
+
+    if (isSessionAdminMode) {
+        if(adminBadge) adminBadge.classList.remove('hidden');
+        if(adminBtnGroup) adminBtnGroup.classList.remove('hidden');
+        if(btnSelectAll) btnSelectAll.classList.remove('hidden');
+        if(btnEndSession) btnEndSession.classList.remove('hidden');
+        if(btnAdminPanelToggle) btnAdminPanelToggle.classList.remove('hidden');
+        if(adminNotice) adminNotice.classList.add('hidden');
+    }
+
+    const specificSessionRef = ref(db, `sessions/${targetSessionId}`);
+    onValue(specificSessionRef, (snapshot) => {
+        let sessionData = snapshot.val();
+        if (!sessionData) return;
+        currentActiveSession = sessionData;
+        
+        if (sessionData.statsLog) {
+            sessionMmrStatsMap = sessionData.statsLog;
+        } else {
+            sessionMmrStatsMap = {};
+        }
+
+        if (sessionData.attendees) {
+            selectedPlayerIds = new Set(sessionData.attendees);
+            const cnt = document.getElementById('checkedCount');
+            if (cnt) cnt.innerText = selectedPlayerIds.size;
+        }
+
+        window.renderSessionViews(sessionData);
+        
+        if (sessionData.status === "진행중") {
+            buildLiveCourtsDisplay();
+            buildLiveWaitingQueueDisplay(); 
+            buildSessionLiveRankTable();
+        }
+    });
+
+    const playersRef = ref(db, 'players');
+    onValue(playersRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+            allSystemPlayers.sort((a, b) => a.id - b.id);
+        }
+        buildAttendanceGrid();
+        buildIdentityDropdown(); 
+        if (currentActiveSession && currentActiveSession.status === "진행중") {
+            buildSessionLiveRankTable();
+            buildAdminManageLists(); 
+        }
+    });
+
+    setupSessionEventListeners();
+};
 
 // 회원 명단 백오피스용 호환성 기능 유지 (players.html)
 let currentCachedPlayers = [];
