@@ -6,105 +6,108 @@
     <title>🏟️ 정모 실시간 통합 제어 센터</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 select-none">
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 select-none font-sans">
 
     <header class="bg-white border-b border-slate-200 p-4 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <span id="statusBadge" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded border border-slate-200">연결 확인 중...</span>
-                <h1 class="text-base font-bold text-slate-900 font-sans" id="sessionTitle">📅 정모 리그전 제어실</h1>
-                <span id="adminClientBadge" class="hidden bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-md border border-rose-200">👑 마스터 관리자 권한 가동</span>
+        <div class="max-w-5xl mx-auto flex justify-between items-center flex-wrap gap-3">
+            <div class="flex items-center gap-2">
+                <span id="statusBadge" class="text-xs font-bold px-2.5 py-1 rounded border">연결 확인 중...</span>
+                <h1 class="text-base font-black text-slate-900" id="sessionTitle">정모 리그전 제어실</h1>
+                <span id="adminClientBadge" class="hidden bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-md border border-rose-200">👑 관리자 모드</span>
             </div>
             
             <div class="flex items-center gap-2">
-                <div class="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5 text-xs">
-                    <span class="text-slate-500 font-medium">👤 내 이름 설정:</span>
+                <div class="bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200 flex items-center gap-1.5 text-xs shadow-3xs">
+                    <span class="text-slate-500 font-bold">👤 내 이름:</span>
                     <select id="selectMyIdentity" class="bg-white border border-slate-300 text-slate-800 rounded px-1.5 py-0.5 font-bold focus:outline-none">
                         <option value="">-- 일반 관람 모드 --</option>
                     </select>
                 </div>
-                <nav class="flex gap-1.5">
-                    <a href="./index.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">🏠 홈 대시보드</a>
-                    <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
+                <button id="btnAdminPanelToggle" class="hidden bg-rose-600 hover:bg-rose-700 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow transition cursor-pointer">
+                    🛠️ 정모 실시간 관리하기
+                </button>
+                <nav class="flex gap-1">
+                    <a href="./index.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 transition">🏠 홈</a>
                 </nav>
             </div>
         </div>
     </header>
 
-    <main class="max-w-5xl mx-auto p-4 mt-4 space-y-6">
+    <main class="max-w-5xl mx-auto p-4 mt-2 space-y-8">
         
         <div id="viewReady" class="grid grid-cols-1 md:grid-cols-3 gap-6" style="display:none;">
             <div class="md:col-span-1 space-y-4">
                 <section class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm sticky top-24">
-                    <div class="border-b border-slate-100 pb-2">
-                        <h2 class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider">⚙️ 정모 제어 패널</h2>
-                        <p class="text-[11px] text-slate-400 mt-0.5">정모 시작 및 환경 조작 구역입니다.</p>
-                    </div>
-                    
+                    <div class="border-b border-slate-100 pb-2"><h2 class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider">⚙️ 정모 제어 패널</h2></div>
                     <div class="space-y-1.5 text-xs">
                         <label class="text-slate-600 font-bold">사용 가능 코트 수</label>
-                        <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:outline-none">
+                        <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:outline-none">
                             <option value="1">1 개 코트</option>
                             <option value="2">2 개 코트</option>
                             <option value="3">3 개 코트</option>
                             <option value="4" selected>4 개 코트</option>
                         </select>
                     </div>
-
-                    <div id="adminOnlyLockNotice" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-700 font-sans leading-relaxed">
-                        🔒 정모 설정 변경 및 리그전 공식 시작 권한은 **대문에서 자물쇠 인증을 통과한 [마스터 관리자]**만 행사할 수 있습니다. 일반 회원은 실시간 출석 현황 조회만 가능합니다.
+                    <div id="adminOnlyLockNotice" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-700 leading-relaxed">
+                        🔒 정모 시작 및 설정 권한은 관리자에게만 있습니다. 일반 회원은 출석 조회만 가능합니다.
                     </div>
-
                     <div id="adminButtonGroup" class="space-y-2 pt-2">
-                        <button id="btnSaveSetup" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-lg text-xs shadow-xs transition cursor-pointer">
-                            💾 출석부 및 환경 설정 저장 (관리자)
-                        </button>
-                        <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-lg text-xs shadow-md hover:shadow-lg transition cursor-pointer">
-                            ▶️ 정모 매칭 리그전 공식 시작!
-                        </button>
+                        <button id="btnSaveSetup" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-lg text-xs transition cursor-pointer">💾 출석부 및 환경 설정 저장</button>
+                        <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-lg text-xs shadow-md transition cursor-pointer">▶️ 정모 매칭 리그전 공식 시작!</button>
                     </div>
                 </section>
             </div>
-
             <div class="md:col-span-2">
                 <section class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <div>
-                            <h2 class="text-sm font-bold text-slate-800">👥 오늘 정모 참석자 출석부</h2>
-                            <p class="text-[11px] text-slate-400 mt-0.5">선택된 인원: <span id="checkedCount" class="text-indigo-600 font-bold">0</span>명</p>
-                        </div>
-                        <button id="btnSelectAll" class="hidden text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg font-medium shadow-xs">전체 선택 / 해제</button>
+                        <h2 class="text-sm font-bold text-slate-800">👥 오늘 정모 참석자 출석부 (<span id="checkedCount" class="text-indigo-600 font-black">0</span>명)</h2>
+                        <button id="btnSelectAll" class="hidden text-[11px] bg-slate-50 text-slate-600 border px-3 py-1.5 rounded-lg font-medium shadow-3xs">전체 선택</button>
                     </div>
-                    <div id="attendanceGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[600px] overflow-y-auto pr-1"></div>
+                    <div id="attendanceGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[550px] overflow-y-auto pr-1"></div>
                 </section>
             </div>
         </div>
 
         <div id="viewLive" class="grid grid-cols-1 gap-6" style="display:none;">
-            <div class="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <div class="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-xs flex-wrap gap-3">
                 <div>
                     <h2 class="text-sm font-black text-slate-900" id="liveSessionNameDisplay">🏆 라이브 리그전 진행 중</h2>
-                    <p class="text-[11px] text-slate-400 mt-0.5">실시간 MMR 기반 자동 밸런싱 대진 모드입니다.</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">내 이름을 설정하면 내가 속한 경기 코트가 노랗게 하이라이트됩니다.</p>
                 </div>
-                <button id="btnEndSession" class="hidden bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow cursor-pointer">
-                    🛑 오늘 정모 최종 종료 및 마감 (관리자)
-                </button>
+                <button id="btnEndSession" class="hidden bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow cursor-pointer">🛑 정모 최종 마감</button>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 space-y-4">
-                    <h3 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider pl-1">🏟️ 실시간 진행 코트 현황</h3>
+                <div class="lg:col-span-2 space-y-3">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider pl-1">🏟️ 실시간 진행 코트 대진표</h3>
                     <div id="courtsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
                 </div>
+                <div class="lg:col-span-1 space-y-3">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider pl-1">📋 정모 라이브 대기열 명단</h3>
+                    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col gap-2 max-h-[480px] overflow-y-auto" id="liveWaitingContainer"></div>
+                </div>
+            </div>
 
-                <div class="lg:col-span-1 space-y-4">
-                    <section class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
-                        <div class="border-b border-slate-100 pb-2">
-                            <h3 class="text-xs font-black text-slate-900">📋 정모 라이브 대기열 명단</h3>
-                            <p class="text-[10px] text-slate-400 mt-0.5">부상이나 화장실 등으로 휴식이 필요할 때 토글하세요.</p>
-                        </div>
-                        <div id="liveWaitingContainer" class="flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1"></div>
-                    </section>
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+                <div class="border-b border-slate-100 pb-3">
+                    <h3 class="text-sm font-black text-slate-900">📊 오늘 정모 실시간 성적 및 MMR 변동 스코어보드</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">오늘 치러진 경기 결과를 합산하여 실시간 레이팅 점수 득실을 표기합니다.</p>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-slate-100">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
+                                <th class="py-3 px-4 text-center">순위</th>
+                                <th class="py-3 px-4">이름 (급수)</th>
+                                <th class="py-3 px-4 text-center">오늘 경기 수</th>
+                                <th class="py-3 px-4 text-center">오늘 성적</th>
+                                <th class="py-3 px-4 text-right">현재 공식 MMR</th>
+                                <th class="py-3 px-4 text-right">오늘의 점수 변동</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessionLiveRankTableBody" class="divide-y divide-slate-100 font-sans text-slate-700">
+                            </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -115,6 +118,29 @@
         </div>
 
     </main>
+
+    <div id="adminManageModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 shadow-2xl" style="display: none;">
+        <div class="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-5 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="border-b border-slate-100 pb-2.5 flex justify-between items-center">
+                <div>
+                    <h3 class="text-sm font-black text-rose-600 uppercase tracking-wider">🛠️ 관리자 전용 정모 실시간 기어 박스</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">참석자 강제 방출 및 미참석 회원의 중간 대기열 강제 투입을 제어합니다.</p>
+                </div>
+                <button id="btnCloseAdminModal" class="text-slate-400 hover:text-slate-600 text-sm font-bold bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border transition">닫기</button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto">
+                <div class="space-y-2 border border-slate-100 p-3 rounded-xl bg-slate-50/50 flex flex-col">
+                    <span class="text-[11px] font-black text-indigo-600 block border-b border-indigo-100 pb-1">🟢 현재 정모 참석 회원 명단</span>
+                    <div id="adminManageAttendeesList" class="space-y-1.5 overflow-y-auto flex-1 max-h-[350px] text-xs"></div>
+                </div>
+                <div class="space-y-2 border border-slate-100 p-3 rounded-xl bg-slate-50/50 flex flex-col">
+                    <span class="text-[11px] font-black text-slate-500 block border-b border-slate-200 pb-1">⚪ 미참석 전체 회원 명단 (늦참 충원용)</span>
+                    <div id="adminManageAbsenteesList" class="space-y-1.5 overflow-y-auto flex-1 max-h-[350px] text-xs"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 shadow-2xl" style="display: none;">
         <div class="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 space-y-4 shadow-2xl">
