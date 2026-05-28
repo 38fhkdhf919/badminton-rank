@@ -5,6 +5,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
 const firebaseConfig = {
       apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
       authDomain: "badminton-live-rank.firebaseapp.com",
+      databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "badminton-live-rank",
       storageBucket: "badminton-live-rank.firebasestorage.app",
       messagingSenderId: "803402263930",
