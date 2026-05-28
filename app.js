@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+// ⚠️ 관리자님의 실제 파이어베이스 주소 및 키값을 정확히 유지해 주세요!
 const firebaseConfig = {
     apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
     authDomain: "badminton-live-rank.firebaseapp.com",
@@ -15,6 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// 전역 캐시 변수들
 let allSystemPlayers = [];
 let selectedPlayerIds = new Set();
 let targetSessionId = null;       
@@ -23,12 +25,46 @@ let activeModalCourtIndex = null;
 
 let isSessionAdminMode = false;   
 let clientSelectedMyName = "";    
-
-// 당일 정모 실시간 득실 계산 스냅샷 캐시 맵 (오늘의 성적판용)
 let sessionMmrStatsMap = {};
 
 // ==========================================
-// 🏢 대문 대시보드 (index.html) 제어 엔진
+// 🚨 [오류 완벽 차단] 화면 뷰 제어 스위처 함수 전역 선언부
+// ==========================================
+window.renderSessionViews = function(session) {
+    const badge = document.getElementById('statusBadge');
+    const title = document.getElementById('sessionTitle');
+    const vReady = document.getElementById('viewReady');
+    const vLive = document.getElementById('viewLive');
+    const vArchive = document.getElementById('viewArchive');
+    if (!badge || !title || !vReady || !vLive || !vArchive) return;
+
+    const finalTitle = session.title || "일요일 공식 정모 리그전";
+    title.innerText = `📅 ${finalTitle}`;
+    if (document.getElementById('liveSessionNameDisplay')) document.getElementById('liveSessionNameDisplay').innerText = `🏆 현재 진행 중인 세션 : ${finalTitle}`;
+    if (document.getElementById('archiveSessionNameDisplay')) document.getElementById('archiveSessionNameDisplay').innerText = `📁 정모 공식 명칭 : ${finalTitle}`;
+
+    // 전체 안전 숨김 후 선별 노출
+    vReady.style.display = 'none';
+    vLive.style.display = 'none';
+    vArchive.style.display = 'none';
+
+    if (session.status === "진행중") {
+        badge.innerText = "🔥 라이브 진행 중";
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-emerald-50 text-emerald-700 border-emerald-200";
+        vLive.style.display = 'grid';
+    } else if (session.status === "종료") {
+        badge.innerText = "📝 정모 마감 완료";
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-indigo-50 text-indigo-700 border-indigo-200";
+        vArchive.style.display = 'block';
+    } else {
+        badge.innerText = "⏳ 정모 대기중 (예정)";
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans bg-amber-50 text-amber-700 border-amber-200";
+        vReady.style.display = 'grid';
+    }
+};
+
+// ==========================================
+// 🏢 대문 대시보드 (index.html) 제어 마스터 엔진
 // ==========================================
 let isAdminMode = false;
 const MASTER_PASSWORD = "1234";
@@ -47,7 +83,7 @@ window.initDashboardPage = function() {
             if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
             if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
             const deleteButtonHtml = isAdminMode 
-                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3">🗑️ 삭제</button>`
+                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3 cursor-pointer">🗑️ 삭제</button>`
                 : '';
 
             return `
@@ -111,7 +147,7 @@ window.initDashboardPage = function() {
 };
 
 // ==========================================
-// 🏟️ 정모 개별 제어실 (session.html) 고도화 엔진
+// 🏟️ 정모 개별 제어실 (session.html) 엔진 
 // ==========================================
 window.initSessionPage = function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -120,7 +156,6 @@ window.initSessionPage = function() {
 
     if (!targetSessionId) { window.location.href = "./index.html"; return; }
 
-    // 관리자 모달 및 버튼 바인딩 제어
     const adminBadge = document.getElementById('adminClientBadge');
     const adminBtnGroup = document.getElementById('adminButtonGroup');
     const adminNotice = document.getElementById('adminOnlyLockNotice');
@@ -143,9 +178,10 @@ window.initSessionPage = function() {
         if (!sessionData) return;
         currentActiveSession = sessionData;
         
-        // 오늘 정모 전용 실시간 득실 스냅샷 초기 메모리 구축화
         if (sessionData.statsLog) {
             sessionMmrStatsMap = sessionData.statsLog;
+        } else {
+            sessionMmrStatsMap = {};
         }
 
         if (sessionData.attendees) {
@@ -154,11 +190,13 @@ window.initSessionPage = function() {
             if (cnt) cnt.innerText = selectedPlayerIds.size;
         }
 
-        renderSessionViews(sessionData);
+        // 안전하게 글로벌 변동 뷰어 호출 가동
+        window.renderSessionViews(sessionData);
+        
         if (sessionData.status === "진행중") {
             buildLiveCourtsDisplay();
-            buildLiveWaitingQueueDisplay();
-            buildSessionLiveRankTable(); // 📊 당일 변동 스코어판 렌더링
+            buildLiveWaitingQueueDisplay(); 
+            buildSessionLiveRankTable();
         }
     });
 
@@ -173,14 +211,13 @@ window.initSessionPage = function() {
         buildIdentityDropdown(); 
         if (currentActiveSession && currentActiveSession.status === "진행중") {
             buildSessionLiveRankTable();
-            buildAdminManageLists(); // 관리자 명단 제어판 내부 리프레시
+            buildAdminManageLists(); 
         }
     });
 
     setupSessionEventListeners();
 };
 
-// 🏟️ 실시간 코트 대진표 출력 (🔥 내 이름 선택 시 노란색 하이라이트 레이저 탑재)
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
     if (!container || !currentActiveSession || !targetSessionId) return;
@@ -195,8 +232,6 @@ function buildLiveCourtsDisplay() {
 
     container.innerHTML = currentActiveSession.matches.map((m, idx) => {
         if (!m) return '';
-        
-        // 🔥 [기획 핵심] 나와 팀원 혹은 적군 매칭 시 노란색 불 켜기 기법 판독
         const isMyMatch = m.teamANames.includes(clientSelectedMyName) || m.teamBNames.includes(clientSelectedMyName);
         const highlightClass = isMyMatch 
             ? "border-amber-400 bg-amber-50/50 ring-4 ring-amber-400/10 scale-[1.01]" 
@@ -204,7 +239,7 @@ function buildLiveCourtsDisplay() {
 
         return `
             <div class="rounded-2xl border p-4 shadow-sm space-y-3.5 flex flex-col justify-between transition-all duration-300 ${highlightClass}">
-                <div class="flex justify-between items-center border-b border-slate-100/80 pb-1.5">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
                     <div class="flex items-center gap-1.5">
                         <span class="text-xs font-black text-indigo-600 font-mono">🏟️ COURT ${idx + 1}</span>
                         ${isMyMatch ? `<span class="bg-amber-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded animate-bounce shadow-2xs">🔥 내 경기!</span>` : ''}
@@ -212,15 +247,11 @@ function buildLiveCourtsDisplay() {
                     <span class="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded">MATCH LIVE</span>
                 </div>
                 <div class="grid grid-cols-7 gap-1 items-center justify-center py-1 text-center font-sans">
-                    <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white/90 shadow-2xs p-2.5 rounded-xl border border-slate-200/60">
-                        ${m.teamANames.join(' • ')}
-                    </div>
+                    <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white shadow-2xs p-2.5 rounded-xl border border-slate-200/60">${m.teamANames.join(' • ')}</div>
                     <div class="col-span-1 text-[10px] font-black text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white/90 shadow-2xs p-2.5 rounded-xl border border-slate-200/60">
-                        ${m.teamBNames.join(' • ')}
-                    </div>
+                    <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white shadow-2xs p-2.5 rounded-xl border border-slate-200/60">${m.teamBNames.join(' • ')}</div>
                 </div>
-                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer shadow-xs">⚖️ 경기 결과 스코어 정산</button>
+                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">⚖️ 스코어 정산 입력</button>
             </div>
         `;
     }).join('');
@@ -230,56 +261,46 @@ function buildLiveCourtsDisplay() {
     });
 }
 
-// 🧮 세트 결과 정산 및 당일 누적 변동 스코어 보관 랩핑 연산 엔진
-function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
-    if (!isSessionAdminMode) { alert("권한 거부"); return; }
-    if (!targetSessionId) return;
-    const match = currentActiveSession.matches[courtIdx];
-    const scoreDiff = Math.abs(scoreA - scoreB);
-    const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3));
-    const baseMmrChange = 15 + bonusWeight;
+function generateAutoBalancedMatch(courtIdx) {
+    const attendeesIds = currentActiveSession.attendees || [];
+    const injuredList = currentActiveSession.injuredPlayers || []; 
+    const activePlayingIds = new Set();
+    if (currentActiveSession && currentActiveSession.matches) {
+        currentActiveSession.matches.forEach(m => {
+            if (m && m.status === "LIVE") { m.teamA.forEach(id => activePlayingIds.add(id)); m.teamB.forEach(id => activePlayingIds.add(id)); }
+        });
+    }
 
-    const winnerTeam = scoreA > scoreB ? 'A' : 'B';
-    const winIds = winnerTeam === 'A' ? match.teamA : match.teamB;
-    const loseIds = winnerTeam === 'A' ? match.teamB : match.teamA;
-
-    // 마스터 DB 데이터 변동
-    allSystemPlayers.forEach(p => {
-        if (winIds.includes(p.id) || loseIds.includes(p.id)) {
-            p.matchesPlayed += 1;
-            
-            // 오늘 이 정모방 안에서 벌어진 누적 스탯 기록 보관함 업데이트 처리
-            if (!sessionMmrStatsMap[p.id]) {
-                sessionMmrStatsMap[p.id] = { win: 0, lose: 0, delta: 0 };
-            }
-
-            if (winIds.includes(p.id)) {
-                p.displayMmr += baseMmrChange; p.matchMmr += baseMmrChange;
-                sessionMmrStatsMap[p.id].win += 1;
-                sessionMmrStatsMap[p.id].delta += baseMmrChange;
-            } else {
-                p.displayMmr = Math.max(600, p.displayMmr - baseMmrChange); p.matchMmr = Math.max(600, p.matchMmr - baseMmrChange);
-                sessionMmrStatsMap[p.id].lose += 1;
-                sessionMmrStatsMap[p.id].delta -= baseMmrChange;
-            }
-        }
-    });
-
-    // 서버 동시 듀얼 쓰기
-    set(ref(db, 'players'), allSystemPlayers);
-    currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
-    
-    // 파이어베이스 sessions 하부에 변동 일지 statsLog 구조체 같이 박제 저장
-    update(ref(db, `sessions/${targetSessionId}`), {
-        matches: currentActiveSession.matches,
-        statsLog: sessionMmrStatsMap
-    });
-
-    alert(` 정산 성공! 오늘의 득실 점수가 스코어보드에 실시간 가중 반영되었습니다.`);
-    document.getElementById('scoreModal').style.display = 'none';
+    const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
+    let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
+    const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 4);
+    while (selected.length < 4) { selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
+    return { status: "LIVE", teamA: [selected[0].id, selected[1].id], teamANames: [selected[0].name, selected[1].name], teamB: [selected[2].id, selected[3].id], teamBNames: [selected[2].name, selected[3].name] };
 }
 
-// 📊 [신규 생성] 당일 정모 성적표 목록 생성 뷰어 (+ 초록색 / - 빨간색 기법 적용)
+function openScoreModal(courtIdx) {
+    const match = currentActiveSession.matches[courtIdx];
+    if (!match) return;
+    activeModalCourtIndex = courtIdx;
+    document.getElementById('modalCourtTitle').innerText = ` Stadium 코트 ${courtIdx + 1} 결과 정산`;
+    document.getElementById('modalTeamANames').innerText = match.teamANames.join(', ');
+    document.getElementById('modalTeamBNames').innerText = match.teamBNames.join(', ');
+    document.getElementById('scoreA').value = 0;
+    document.getElementById('scoreB').value = 0;
+    
+    const scoreNotice = document.getElementById('modalAdminOnlyNotice');
+    const submitBtn = document.getElementById('btnSubmitScore');
+    if (!isSessionAdminMode) {
+        if(scoreNotice) scoreNotice.classList.remove('hidden');
+        if(submitBtn) { submitBtn.style.display = 'none'; }
+    } else {
+        if(scoreNotice) scoreNotice.classList.add('hidden');
+        if(submitBtn) { submitBtn.style.display = 'block'; }
+    }
+    document.getElementById('scoreModal').style.display = 'flex';
+}
+
 function buildSessionLiveRankTable() {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || !currentActiveSession) return;
@@ -287,7 +308,6 @@ function buildSessionLiveRankTable() {
     const attendeesIds = currentActiveSession.attendees || [];
     const todayPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
 
-    // 오늘 활약도가 높은 순(획득 점수가 높은 순)대로 내림차순 정렬
     todayPlayers.sort((a, b) => {
         const deltaA = sessionMmrStatsMap[a.id] ? sessionMmrStatsMap[a.id].delta : 0;
         const deltaB = sessionMmrStatsMap[b.id] ? sessionMmrStatsMap[b.id].delta : 0;
@@ -302,14 +322,10 @@ function buildSessionLiveRankTable() {
     tbody.innerHTML = todayPlayers.map((p, idx) => {
         const stats = sessionMmrStatsMap[p.id] || { win: 0, lose: 0, delta: 0 };
         const totalPlayedToday = stats.win + stats.lose;
-        
-        // 득실 수치 마킹 분기 처리 기법
         let deltaHtml = `<span class="text-slate-400 font-bold font-mono">0</span>`;
         if (stats.delta > 0) deltaHtml = `<span class="text-emerald-600 font-extrabold font-mono">+${stats.delta}점</span>`;
         if (stats.delta < 0) deltaHtml = `<span class="text-rose-600 font-extrabold font-mono">${stats.delta}점</span>`;
-
-        // 내 이름 하이라이팅 연계
-        const isMeRow = p.name === clientSelectedMyName ? "bg-amber-50/40 font-bold" : "";
+        const isMeRow = p.name === clientSelectedMyName ? "bg-amber-50/60 font-bold" : "";
 
         return `
             <tr class="hover:bg-slate-50/60 transition-colors ${isMeRow}">
@@ -324,15 +340,12 @@ function buildSessionLiveRankTable() {
     }).join('');
 }
 
-// 🛠️ [신규 생성] 관리자 토글 패널 내부의 인원 밀어넣기 / 방출하기 목록 작성기
 function buildAdminManageLists() {
     const attendeesBox = document.getElementById('adminManageAttendeesList');
     const absenteesBox = document.getElementById('adminManageAbsenteesList');
     if (!attendeesBox || !absenteesBox || !currentActiveSession) return;
 
     const attendeesIds = currentActiveSession.attendees || [];
-    
-    // 1. 현재 참석한 자 명단 (방출 단추 포함)
     const currentAttendees = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
     attendeesBox.innerHTML = currentAttendees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
@@ -341,7 +354,6 @@ function buildAdminManageLists() {
         </div>
     `).join('');
 
-    // 2. 현재 정모에 참석하지 않은 클럽 총원 명단 (늦참 난입 추가 단추 포함)
     const currentAbsentees = allSystemPlayers.filter(p => !attendeesIds.includes(p.id));
     absenteesBox.innerHTML = currentAbsentees.map(p => `
         <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
@@ -350,111 +362,25 @@ function buildAdminManageLists() {
         </div>
     `).join('');
 
-    // ⚡ 방출하기 버튼 실행 연산
     document.querySelectorAll('.btn-admin-kick').forEach(btn => {
         btn.onclick = function() {
             const pid = parseInt(this.getAttribute('data-id'));
             let updatedList = (currentActiveSession.attendees || []).filter(id => id !== pid);
-            // 대기열 제외 처리 시 부상 명단도 동시 클리닝 정산
             let updatedInjured = (currentActiveSession.injuredPlayers || []).filter(id => id !== pid);
-            
-            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList, injuredPlayers: updatedInjured })
-                .then(() => { buildAdminManageLists(); });
+            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList, injuredPlayers: updatedInjured }).then(() => { buildAdminManageLists(); });
         };
     });
 
-    // ⚡ 늦참 회원 강제 수동 진입 난입 연산
     document.querySelectorAll('.btn-admin-invite').forEach(btn => {
         btn.onclick = function() {
             const pid = parseInt(this.getAttribute('data-id'));
             let updatedList = currentActiveSession.attendees ? [...currentActiveSession.attendees] : [];
-            if (!updatedList.includes(pid)) { updatedList.push(pid); }
-            
-            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList })
-                .then(() => { buildAdminManageLists(); });
+            if (!updatedList.includes(pid)) updatedList.push(pid);
+            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList }).then(() => { buildAdminManageLists(); });
         };
     });
 }
 
-// 버튼 제어 리스너 그룹 총괄 결합
-function setupSessionEventListeners() {
-    // 관리자 기어 판넬 창 열고 닫기 토글 제어 이벤트
-    const btnPanelOpen = document.getElementById('btnAdminPanelToggle');
-    const btnPanelClose = document.getElementById('btnCloseAdminModal');
-    const adminModal = document.getElementById('adminManageModal');
-
-    if (btnPanelOpen && adminModal) {
-        btnPanelOpen.onclick = () => {
-            buildAdminManageLists(); // 열 때 실시간 리스트 빌드업
-            adminModal.style.display = 'flex';
-        };
-    }
-    if (btnPanelClose && adminModal) {
-        btnPanelClose.onclick = () => { adminModal.style.display = 'none'; };
-    }
-
-    const btnAll = document.getElementById('btnSelectAll');
-    if (btnAll) {
-        btnAll.onclick = function() {
-            if(!isSessionAdminMode) return;
-            if (selectedPlayerIds.size === allSystemPlayers.length) selectedPlayerIds.clear();
-            else allSystemPlayers.forEach(p => selectedPlayerIds.add(p.id));
-            const cnt = document.getElementById('checkedCount');
-            if (cnt) cnt.innerText = selectedPlayerIds.size;
-            buildAttendanceGrid();
-        };
-    }
-    const btnSave = document.getElementById('btnSaveSetup');
-    if (btnSave) {
-        btnSave.onclick = function() {
-            if(!isSessionAdminMode) return;
-            if (!targetSessionId) return;
-            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
-            const finalAttendeeList = Array.from(selectedPlayerIds);
-            update(ref(db, `sessions/${targetSessionId}`), { courts: selectedCourts, attendees: finalAttendeeList }).then(() => {
-                alert("💾 상태 보존 및 환경 설정 저장 완료!");
-            });
-        };
-    }
-    const btnStart = document.getElementById('btnStartSession');
-    if (btnStart) {
-        btnStart.onclick = function() {
-            if(!isSessionAdminMode) return;
-            if (!targetSessionId) return;
-            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상 필요합니다!"); return; }
-            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
-            const finalAttendeeList = Array.from(selectedPlayerIds);
-            if (confirm("▶️ 라이브 모드로 전환하고 실시간 대진표를 가동하시겠습니까?")) {
-                update(ref(db, `sessions/${targetSessionId}`), { status: "진행중", courts: selectedCourts, attendees: finalAttendeeList });
-            }
-        };
-    }
-    const btnCancel = document.getElementById('btnCancelModal');
-    if (btnCancel) btnCancel.onclick = () => { document.getElementById('scoreModal').style.display = 'none'; };
-    
-    const btnSubmit = document.getElementById('btnSubmitScore');
-    if (btnSubmit) {
-        btnSubmit.onclick = () => {
-            if(!isSessionAdminMode) return;
-            const scoreA = parseInt(document.getElementById('scoreA').value) || 0;
-            const scoreB = parseInt(document.getElementById('scoreB').value) || 0;
-            if (scoreA === scoreB) { alert("❌ 동점 종료는 불가능합니다!"); return; }
-            if (activeModalCourtIndex !== null) processMmrMatchCalculation(activeModalCourtIndex, scoreA, scoreB);
-        };
-    }
-    const btnEnd = document.getElementById('btnEndSession');
-    if (btnEnd) {
-        btnEnd.onclick = function() {
-            if(!isSessionAdminMode) return;
-            if (!targetSessionId) return;
-            if (confirm("🛑 정말 오늘 경기를 최종 종료하고 아카이브로 이관하시겠습니까?")) {
-                update(ref(db, `sessions/${targetSessionId}`), { status: "종료" });
-            }
-        };
-    }
-}
-
-// 하위 호환성 연계용 함수 유지
 function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
     if (!select || select.options.length > 1) return;
@@ -466,7 +392,7 @@ function buildIdentityDropdown() {
     select.onchange = function() {
         clientSelectedMyName = this.value;
         if (currentActiveSession && currentActiveSession.status === "진행중") {
-            buildLiveCourtsDisplay(); // ⚡ 내 이름 매핑 시 실시간 코트 하이라이트 즉각 유도 리렌더링
+            buildLiveCourtsDisplay(); 
             buildLiveWaitingQueueDisplay();
             buildSessionLiveRankTable();
         }
@@ -478,7 +404,7 @@ function buildAttendanceGrid() {
     if (!grid || !allSystemPlayers || allSystemPlayers.length === 0) return;
     grid.innerHTML = allSystemPlayers.map(p => {
         const isChecked = selectedPlayerIds.has(p.id);
-        const activeClass = isChecked ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50";
+        const activeClass = isChecked ? "bg-indigo-50 border-indigo-50 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50";
         const badgeColor = p.tier === 'A' ? 'bg-rose-50 text-rose-600 border-rose-100' : p.tier === 'B' ? 'bg-amber-50 text-amber-600 border-amber-100' : p.tier === 'C' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-sky-50 text-sky-600 border-sky-100';
         return `<div data-id="${p.id}" class="player-card p-3.5 rounded-xl border text-left cursor-pointer transition-all flex justify-between items-center shadow-xs ${activeClass}"><div class="space-y-0.5"><p class="text-[10px] text-slate-400 font-mono font-medium">ID ${String(p.id).padStart(2, '0')}</p><p class="text-xs font-bold font-sans">${p.name}</p></div><span class="text-[10px] font-sans font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${p.tier}조</span></div>`;
     }).join('');
@@ -530,6 +456,71 @@ function buildLiveWaitingQueueDisplay() {
     });
 }
 
+function setupSessionEventListeners() {
+    const btnPanelOpen = document.getElementById('btnAdminPanelToggle');
+    const btnPanelClose = document.getElementById('btnCloseAdminModal');
+    const adminModal = document.getElementById('adminManageModal');
+
+    if (btnPanelOpen && adminModal) { btnPanelOpen.onclick = () => { buildAdminManageLists(); adminModal.style.display = 'flex'; }; }
+    if (btnPanelClose && adminModal) { btnPanelClose.onclick = () => { adminModal.style.display = 'none'; }; }
+
+    const btnAll = document.getElementById('btnSelectAll');
+    if (btnAll) {
+        btnAll.onclick = function() {
+            if(!isSessionAdminMode) return;
+            if (selectedPlayerIds.size === allSystemPlayers.length) selectedPlayerIds.clear();
+            else allSystemPlayers.forEach(p => selectedPlayerIds.add(p.id));
+            const cnt = document.getElementById('checkedCount'); if (cnt) cnt.innerText = selectedPlayerIds.size;
+            buildAttendanceGrid();
+        };
+    }
+    const btnSave = document.getElementById('btnSaveSetup');
+    if (btnSave) {
+        btnSave.onclick = function() {
+            if(!isSessionAdminMode) return;
+            if (!targetSessionId) return;
+            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
+            const finalAttendeeList = Array.from(selectedPlayerIds);
+            update(ref(db, `sessions/${targetSessionId}`), { courts: selectedCourts, attendees: finalAttendeeList }).then(() => { alert("💾 상태 보존 및 환경 설정 저장 완료!"); });
+        };
+    }
+    const btnStart = document.getElementById('btnStartSession');
+    if (btnStart) {
+        btnStart.onclick = function() {
+            if(!isSessionAdminMode) return;
+            if (!targetSessionId) return;
+            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상 필요합니다!"); return; }
+            const selectedCourts = parseInt(document.getElementById('selectCourts').value);
+            const finalAttendeeList = Array.from(selectedPlayerIds);
+            if (confirm("▶️ 라이브 모드로 전환하고 실시간 대진표를 가동하시겠습니까?")) {
+                update(ref(db, `sessions/${targetSessionId}`), { status: "진행중", courts: selectedCourts, attendees: finalAttendeeList });
+            }
+        };
+    }
+    const btnCancel = document.getElementById('btnCancelModal');
+    if (btnCancel) btnCancel.onclick = () => { document.getElementById('scoreModal').style.display = 'none'; };
+    
+    const btnSubmit = document.getElementById('btnSubmitScore');
+    if (btnSubmit) {
+        btnSubmit.onclick = function() {
+            if(!isSessionAdminMode) return;
+            const scoreA = parseInt(document.getElementById('scoreA').value) || 0;
+            const scoreB = parseInt(document.getElementById('scoreB').value) || 0;
+            if (scoreA === scoreB) { alert("❌ 동점 종료는 불가능합니다!"); return; }
+            if (activeModalCourtIndex !== null) processMmrMatchCalculation(activeModalCourtIndex, scoreA, scoreB);
+        };
+    }
+    const btnEnd = document.getElementById('btnEndSession');
+    if (btnEnd) {
+        btnEnd.onclick = function() {
+            if(!isSessionAdminMode) return;
+            if (!targetSessionId) return;
+            if (confirm("🛑 정말 오늘 경기를 최종 종료하고 아카이브로 이관하시겠습니까?")) { update(ref(db, `sessions/${targetSessionId}`), { status: "종료" }); }
+        };
+    }
+}
+
+// 회원 명단 백오피스용 호환성 기능 유지 (players.html)
 let currentCachedPlayers = [];
 window.listenToPlayers = function(callback) {
     const playersRef = ref(db, 'players');
