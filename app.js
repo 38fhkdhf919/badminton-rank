@@ -3,13 +3,13 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
 
 // 관리자님의 파이어베이스 실제 정보로 교체 필수!
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_AUTH_DOMAIN_HERE",
-    databaseURL: "YOUR_DATABASE_URL_HERE", // 예: https://프로젝트ID-default-rtdb.asia-southeast1.firebasedatabase.app
-    projectId: "YOUR_PROJECT_ID_HERE",
-    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-    appId: "YOUR_APP_ID_HERE"
+      apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
+      authDomain: "badminton-live-rank.firebaseapp.com",
+      projectId: "badminton-live-rank",
+      storageBucket: "badminton-live-rank.firebasestorage.app",
+      messagingSenderId: "803402263930",
+      appId: "1:803402263930:web:ebe85b833a86d6acd33ac3",
+      measurementId: "G-SE2PTKXVDJ"
 };
 
 // 파이어베이스 및 리얼타임 DB 초기화
