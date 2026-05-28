@@ -16,6 +16,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// 🔥 [여기에 추가] 대시보드 관리자 모드용 마스터 전역 변수 선언
+let isAdminMode = false;
+const MASTER_PASSWORD = "1234";
+
 // 전역 캐시 변수들
 let allSystemPlayers = [];
 let selectedPlayerIds = new Set();
