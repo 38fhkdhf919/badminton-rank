@@ -63,15 +63,14 @@ window.renderSessionViews = function(session) {
 };
 
 // ==========================================
-// 🚀 [기획 이식 핵심] 관리자 표 다중 스탯 스캔 + 1사이클 홀딩 알고리즘
+// 🎲 4중 필터 1사이클 홀딩 배드민턴 매칭 엔진
 // ==========================================
 function generateAutoBalancedMatch(courtIdx) {
     const attendeesIds = currentActiveSession.attendees || [];
     const injuredList = currentActiveSession.injuredPlayers || [];
-    const historyLog = currentActiveSession.historyLog || []; // 역대 경기 이력 배열 트랙 데이터
+    const historyLog = currentActiveSession.historyLog || []; 
     const totalCourtsCount = currentActiveSession.courts || 1;
 
-    // 1. 현재 모든 코트 위에서 게임을 뛰고 있는 선수 ID 수집 (중복 진입 원천 차단)
     const activePlayingIds = new Set();
     if (currentActiveSession && currentActiveSession.matches) {
         currentActiveSession.matches.forEach(m => {
@@ -82,81 +81,55 @@ function generateAutoBalancedMatch(courtIdx) {
         });
     }
 
-    // 2. 1차 대기열 필터링 및 점수 기반 정렬 (줄 세우기)
-    // 오늘 참여자 중 현재 뛰고 있지 않고 부상자가 아닌 '찐 대기자' 수집
     let waitingPool = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id) && !injuredList.includes(p.id));
-
     if (waitingPool.length < 4) {
-        // 도저히 인원이 안 되면 전체 참여자 풀에서 부상자만 빼고 강제 차출
         waitingPool = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !injuredList.includes(p.id));
     }
 
-    // 🔥 [정렬 규칙] 오늘 게임 판수가 적은 사람 우선 ➔ 쉰 지 오래된 사람 (ID 역순 등으로 간접 정렬 보정)
     waitingPool.sort((a, b) => {
-        const statsA = sessionMmrStatsMap[a.id] || { win: 0, lose: 0, delta: 0 };
-        const statsB = sessionMmrStatsMap[b.id] || { win: 0, lose: 0, delta: 0 };
+        const statsA = sessionMmrStatsMap[a.id] || { win: 0, lose: 0 };
+        const statsB = sessionMmrStatsMap[b.id] || { win: 0, lose: 0 };
         const playedA = statsA.win + statsA.lose;
         const playedB = statsB.win + statsB.lose;
-        
-        if (playedA !== playedB) return playedA - playedB; // 1순위: 판수 적은 사람 우선
-        return b.id - a.id; // 2순위: 셔플 분배용
+        if (playedA !== playedB) return playedA - playedB;
+        return b.id - a.id;
     });
 
-    // 3. 최근 승률 단기 페이스를 기반으로 보정된 보이지 않는 '매칭용 임시 MMR' 산정
     const getAdjustedMmr = (p) => {
-        const stats = sessionMmrStatsMap[p.id] || { win: 0, lose: 0, delta: 0 };
+        const stats = sessionMmrStatsMap[p.id] || { win: 0, lose: 0 };
         const total = stats.win + stats.lose;
         if (total === 0) return p.matchMmr;
         const winRate = stats.win / total;
-        
-        // 최근 기세가 좋으면(승률 60% 초과) 임시 레이팅 매칭 능력치를 버프하여 상위 매치로 상향 가중치 조정
         if (winRate >= 0.6) return p.matchMmr + 70;
-        if (winRate <= 0.4) return Math.max(600, p.matchMmr - 70); // 페이스 다운 시 하향 조정
+        if (winRate <= 0.4) return Math.max(600, p.matchMmr - 70);
         return p.matchMmr;
     };
 
-    // 4. 대기열 위에서부터 내려가며 최적의 4인 조합 훑기 (다중 스캔 가동)
     let bestFour = [];
     let foundPerfectMatch = false;
-
-    // 대기열 맨 앞의 최우선 순위 대기자 확정 지정
     const masterLeader = waitingPool[0];
-
-    // 마스터 리더를 제외한 나머지 인원들 중 조합 탐색
     const candidates = waitingPool.slice(1);
-
-    // 직전 1경기 안에서 마스터 리더와 같이 편/적으로 만났던 동반 플레이어 ID 목록 발라내기
     const lastMatch = historyLog.length > 0 ? historyLog[historyLog.length - 1] : null;
     const directPastIds = lastMatch ? [...lastMatch.teamA, ...lastMatch.teamB] : [];
 
-    // 중첩 반복문으로 나머지 3자리 최적의 파트너 매칭 조합 스캔
     for (let i = 0; i < candidates.length - 2; i++) {
         for (let j = i + 1; j < candidates.length - 1; j++) {
             for (let k = j + 1; k < candidates.length; k++) {
-                const p2 = candidates[i];
-                const p3 = candidates[j];
-                const p4 = candidates[k];
+                const p2 = candidates[i]; const p3 = candidates[j]; const p4 = candidates[k];
                 const combo = [masterLeader, p2, p3, p4];
 
-                // 필터 A: 직전 1경기를 같이 게임한 플레이어가 겹치는지 체크
                 let hasRecentOverlap = false;
                 if (lastMatch && directPastIds.includes(masterLeader.id)) {
-                    // 리더가 직전 판을 뛰었다면, 같이 뛰었던 사람이 이 조합에 포함되어 있는지 검증
                     const overlapCount = combo.filter(p => directPastIds.includes(p.id)).length;
-                    if (overlapCount >= 2) hasRecentOverlap = true; // 2명 이상 중복 시 리벤지 중복 매치 차단
+                    if (overlapCount >= 2) hasRecentOverlap = true;
                 }
 
-                // 필터 B: 4명의 보정 MMR 실력 편차 검증 (고수와 초심의 대참사 갭 방어)
                 const mmrs = combo.map(p => getAdjustedMmr(p));
-                const maxMmr = Math.max(...mmrs);
-                const minMmr = Math.min(...mmrs);
+                const maxMmr = Math.max(...mmrs); const minMmr = Math.min(...mmrs);
                 const mmrGap = maxMmr - minMmr;
 
-                // 실력차가 적당하고 직전 경기 중복이 아니면 황금 대진 조합으로 즉시 선택 낙점!
                 if (!hasRecentOverlap && mmrGap <= 320) {
-                    bestFour = combo;
-                    foundPerfectMatch = true;
-                    break;
+                    bestFour = combo; foundPerfectMatch = true; break;
                 }
             }
             if (foundPerfectMatch) break;
@@ -164,63 +137,34 @@ function generateAutoBalancedMatch(courtIdx) {
         if (foundPerfectMatch) break;
     }
 
-    // 5. 🛑 [기획의 핵심] 1사이클 조건부 홀딩 예약 제어 로직 가동
-    // 만약 완벽한 조건의 4인이 안 튀어나왔을 때, 의도적으로 홀딩
     if (!foundPerfectMatch) {
-        // 현재 이 방에 누적된 홀딩 카운트 스캔 (없으면 기화)
         if (!currentActiveSession.holdCountMap) currentActiveSession.holdCountMap = {};
         const currentHold = currentActiveSession.holdCountMap[masterLeader.id] || 0;
 
-        // 홀딩 한계선 마지노선: 최대 1사이클 (현재 돌아가는 코트 개수만큼 경기수가 지나갈 때까지)
         if (currentHold < totalCourtsCount && waitingPool.length > 4) {
-            console.log(`⏳ 홀딩 발동: [${masterLeader.name}] 회원의 최우선 대진 상대를 찾기 위해 1경기 대기 홀딩 락을 겁니다. (현재 ${currentHold}/${totalCourtsCount} 사이클 대기 중)`);
-            
-            // 카운트 1 올리고 서버 저장
             currentActiveSession.holdCountMap[masterLeader.id] = currentHold + 1;
-            
-            // 이번 턴은 리더를 건너뛰고, 대기열 다음 순번의 4명으로 우회해서 임시 대진을 짜 줍니다.
             const alternativePool = waitingPool.slice(1);
-            if (alternativePool.length >= 4) {
-                bestFour = alternativePool.slice(0, 4);
-            } else {
-                bestFour = waitingPool.slice(0, 4); // 정 인원이 없으면 홀딩 해제하고 즉시 출전
-            }
+            if (alternativePool.length >= 4) bestFour = alternativePool.slice(0, 4);
+            else bestFour = waitingPool.slice(0, 4);
         } else {
-            // 1사이클 마지노선이 끝났거나 인원이 한정되어 더 뺄 사람이 없다면 강제 잠금 해제하여 출전 처리
-            if (currentActiveSession.holdCountMap) {
-                currentActiveSession.holdCountMap[masterLeader.id] = 0; // 카운트 리셋
-            }
+            if (currentActiveSession.holdCountMap) currentActiveSession.holdCountMap[masterLeader.id] = 0;
             bestFour = waitingPool.slice(0, 4);
         }
     } else {
-        // 황금 조합을 찾았다면 홀딩 맵 초기화
-        if (currentActiveSession.holdCountMap && currentActiveSession.holdCountMap[masterLeader.id]) {
-            currentActiveSession.holdCountMap[masterLeader.id] = 0;
-        }
+        if (currentActiveSession.holdCountMap && currentActiveSession.holdCountMap[masterLeader.id]) currentActiveSession.holdCountMap[masterLeader.id] = 0;
     }
 
-    // 최소 인원 4명 더미 충원 방어선
-    while (bestFour.length < 4) {
-        bestFour.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 });
-    }
-
-    // 6. 확정된 최종 4인 내부에서 점수 합이 가장 팽팽한 팀 반분(팀 찢기) 밸런싱 실행
-    bestFour.sort((a, b) => getAdjustedMmr(b) - getAdjustedMmr(a)); // 보정 레이팅 높은 순 정렬
+    while (bestFour.length < 4) { bestFour.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 }); }
+    bestFour.sort((a, b) => getAdjustedMmr(b) - getAdjustedMmr(a));
     
-    // 1등+4등(고수+초심) vs 2등+3등(중수+중수) 팀 스와핑 찢기 기법 적용
     const teamA = [bestFour[0].id, bestFour[3].id];
     const teamANames = [bestFour[0].name, bestFour[3].name];
     const teamB = [bestFour[1].id, bestFour[2].id];
     const teamBNames = [bestFour[1].name, bestFour[2].name];
 
-    return {
-        status: "LIVE",
-        teamA, teamANames,
-        teamB, teamBNames
-    };
+    return { status: "LIVE", teamA, teamANames, teamB, teamBNames };
 }
 
-// 🏟️ 실시간 코트 대진표 출력 및 내 경기 하이라이트 매핑
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
     if (!container || !currentActiveSession || !targetSessionId) return;
@@ -236,9 +180,13 @@ function buildLiveCourtsDisplay() {
     container.innerHTML = currentActiveSession.matches.map((m, idx) => {
         if (!m) return '';
         const isMyMatch = m.teamANames.includes(clientSelectedMyName) || m.teamBNames.includes(clientSelectedMyName);
-        const highlightClass = isMyMatch 
-            ? "border-amber-400 bg-amber-50/50 ring-4 ring-amber-400/10 scale-[1.01]" 
-            : "bg-white border-slate-200";
+        const highlightClass = isMyMatch ? "border-amber-400 bg-amber-50/50 ring-4 ring-amber-400/10 scale-[1.01]" : "bg-white border-slate-200";
+
+        // 🔥 [테스트 모드 자동 분기] 생성 시 체크했다면 보라색 가상 정산 단추 활성화
+        const isTestMode = currentActiveSession.isTestMode === true;
+        const testSimulateBtnHtml = (isTestMode && isSessionAdminMode)
+            ? `<button data-index="${idx}" class="btn-simulate-score w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">🤖 AI 가상 결과 자동 정산</button>`
+            : '';
 
         return `
             <div class="rounded-2xl border p-4 shadow-sm space-y-3.5 flex flex-col justify-between transition-all duration-300 ${highlightClass}">
@@ -254,7 +202,10 @@ function buildLiveCourtsDisplay() {
                     <div class="col-span-1 text-[10px] font-black text-slate-300 font-mono">VS</div>
                     <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white shadow-2xs p-2.5 rounded-xl border border-slate-200/60">${m.teamBNames.join(' • ')}</div>
                 </div>
-                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">⚖️ 스코어 정산 입력</button>
+                <div class="space-y-1">
+                    <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">⚖️ 스코어 수동 입력</button>
+                    ${testSimulateBtnHtml}
+                </div>
             </div>
         `;
     }).join('');
@@ -262,9 +213,43 @@ function buildLiveCourtsDisplay() {
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
+
+    // ⚡ 가상 시뮬레이터 리스너 결합
+    document.querySelectorAll('.btn-simulate-score').forEach(btn => {
+        btn.onclick = function() { handleAiSimulationClick(parseInt(this.getAttribute('data-index'))); };
+    });
 }
 
-// 경기 결과 처리 점수 연산
+// 🤖 [복원 핵심] AI 가상 결과 정산 연산 매커니즘 
+function handleAiSimulationClick(courtIdx) {
+    if (!isSessionAdminMode || !currentActiveSession) return;
+    const match = currentActiveSession.matches[courtIdx];
+    if (!match) return;
+
+    const getAdjustedMmr = (id) => {
+        const player = allSystemPlayers.find(p => p.id === id);
+        if (!player) return 1000;
+        const stats = sessionMmrStatsMap[id] || { win: 0, lose: 0 };
+        const total = stats.win + stats.lose;
+        if (total === 0) return player.matchMmr;
+        if (stats.win / total >= 0.6) return player.matchMmr + 70;
+        if (stats.win / total <= 0.4) return player.matchMmr - 70;
+        return player.matchMmr;
+    };
+
+    const sumA = match.teamA.reduce((sum, id) => sum + getAdjustedMmr(id), 0);
+    const sumB = match.teamB.reduce((sum, id) => sum + getAdjustedMmr(id), 0);
+    let scoreA, scoreB;
+    const randomFactor = Math.random();
+
+    if ((sumA >= sumB && randomFactor > 0.2) || (sumB > sumA && randomFactor <= 0.2)) {
+        scoreA = 21; scoreB = 14 + Math.floor(Math.random() * 6);
+    } else {
+        scoreB = 21; scoreA = 14 + Math.floor(Math.random() * 6);
+    }
+    processMmrMatchCalculation(courtIdx, scoreA, scoreB);
+}
+
 function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     if (!isSessionAdminMode) { alert("권한 거부"); return; }
     if (!targetSessionId) return;
@@ -272,7 +257,6 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     const scoreDiff = Math.abs(scoreA - scoreB);
     const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3));
     const baseMmrChange = 15 + bonusWeight;
-
     const winnerTeam = scoreA > scoreB ? 'A' : 'B';
     const winIds = winnerTeam === 'A' ? match.teamA : match.teamB;
     const loseIds = winnerTeam === 'A' ? match.teamB : match.teamA;
@@ -280,33 +264,21 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     allSystemPlayers.forEach(p => {
         if (winIds.includes(p.id) || loseIds.includes(p.id)) {
             p.matchesPlayed += 1;
-            if (!sessionMmrStatsMap[p.id]) {
-                sessionMmrStatsMap[p.id] = { win: 0, lose: 0, delta: 0 };
-            }
+            if (!sessionMmrStatsMap[p.id]) sessionMmrStatsMap[p.id] = { win: 0, lose: 0, delta: 0 };
             if (winIds.includes(p.id)) {
                 p.displayMmr += baseMmrChange; p.matchMmr += baseMmrChange;
-                sessionMmrStatsMap[p.id].win += 1;
-                sessionMmrStatsMap[p.id].delta += baseMmrChange;
+                sessionMmrStatsMap[p.id].win += 1; sessionMmrStatsMap[p.id].delta += baseMmrChange;
             } else {
                 p.displayMmr = Math.max(600, p.displayMmr - baseMmrChange); p.matchMmr = Math.max(600, p.matchMmr - baseMmrChange);
-                sessionMmrStatsMap[p.id].lose += 1;
-                sessionMmrStatsMap[p.id].delta -= baseMmrChange;
+                sessionMmrStatsMap[p.id].lose += 1; sessionMmrStatsMap[p.id].delta -= baseMmrChange;
             }
         }
     });
 
-    // 경기 이력 로그 생성 (역대 리벤지 매치 중복 차단 추적용)
     let historyLog = currentActiveSession.historyLog ? [...currentActiveSession.historyLog] : [];
-    historyLog.push({
-        court: courtIdx + 1,
-        teamA: match.teamA,
-        teamB: match.teamB,
-        timestamp: Date.now()
-    });
+    historyLog.push({ court: courtIdx + 1, teamA: match.teamA, teamB: match.teamB, timestamp: Date.now() });
 
     set(ref(db, 'players'), allSystemPlayers);
-    
-    // 다음 경기할 4인 자동 수급 연산
     currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
     
     update(ref(db, `sessions/${targetSessionId}`), {
@@ -315,16 +287,15 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
         historyLog: historyLog,
         holdCountMap: currentActiveSession.holdCountMap || {}
     });
-
-    alert(`🎉 정산 성공! 오늘의 득실 점수가 스코어보드에 실시간 가중 반영되었습니다.`);
     document.getElementById('scoreModal').style.display = 'none';
 }
 
-// 📊 실시간 당일 성적표 변동 출력부
+// ==========================================
+// 📊 실시간 화면 갱신 서브 파트
+// ==========================================
 function buildSessionLiveRankTable() {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || !currentActiveSession) return;
-
     const attendeesIds = currentActiveSession.attendees || [];
     const todayPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
 
@@ -335,28 +306,17 @@ function buildSessionLiveRankTable() {
     });
 
     if (todayPlayers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">성적을 정산할 라이브 참가 인원이 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">참가 인원이 없습니다.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = todayPlayers.map((p, idx) => {
         const stats = sessionMmrStatsMap[p.id] || { win: 0, lose: 0, delta: 0 };
-        const totalPlayedToday = stats.win + stats.lose;
         let deltaHtml = `<span class="text-slate-400 font-bold font-mono">0</span>`;
-        if (stats.delta > 0) deltaHtml = `<span class="text-emerald-600 font-extrabold font-mono">+${stats.delta}점</span>`;
-        if (stats.delta < 0) deltaHtml = `<span class="text-rose-600 font-extrabold font-mono">${stats.delta}점</span>`;
+        if (stats.delta > 0) deltaHtml = `<span class="text-emerald-600 font-extrabold font-mono">+${stats.delta}</span>`;
+        if (stats.delta < 0) deltaHtml = `<span class="text-rose-600 font-extrabold font-mono">${stats.delta}</span>`;
         const isMeRow = p.name === clientSelectedMyName ? "bg-amber-50/60 font-bold" : "";
-
-        return `
-            <tr class="hover:bg-slate-50/60 transition-colors ${isMeRow}">
-                <td class="py-3 px-4 text-center font-bold text-slate-400 font-mono">${idx + 1}</td>
-                <td class="py-3 px-4 font-black text-slate-800">${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.tier}조)</span></td>
-                <td class="py-3 px-4 text-center font-mono text-slate-500">${totalPlayedToday}경기</td>
-                <td class="py-3 px-4 text-center font-mono text-slate-600"><span class="text-emerald-600">${stats.win}승</span> / <span class="text-rose-500">${stats.lose}패</span></td>
-                <td class="py-3 px-4 text-right font-black font-mono text-slate-900">${p.displayMmr}점</td>
-                <td class="py-3 px-4 text-right">${deltaHtml}</td>
-            </tr>
-        `;
+        return `<tr class="hover:bg-slate-50/60 transition-colors ${isMeRow}"><td class="py-3 px-4 text-center font-bold text-slate-400 font-mono">${idx + 1}</td><td class="py-3 px-4 font-black text-slate-800">${p.name} <span class="text-[10px] text-slate-400">(${p.tier}조)</span></td><td class="py-3 px-4 text-center font-mono">${stats.win+stats.lose}판</td><td class="py-3 px-4 text-center font-mono text-slate-500">${stats.win}승/${stats.lose}패</td><td class="py-3 px-4 text-right font-black font-mono">${p.displayMmr}</td><td class="py-3 px-4 text-right">${deltaHtml}</td></tr>`;
     }).join('');
 }
 
@@ -367,36 +327,24 @@ function buildAdminManageLists() {
 
     const attendeesIds = currentActiveSession.attendees || [];
     const currentAttendees = allSystemPlayers.filter(p => attendeesIds.includes(p.id));
-    attendeesBox.innerHTML = currentAttendees.map(p => `
-        <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
-            <span class="font-bold text-slate-800">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-kick bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px] cursor-pointer">제외</button>
-        </div>
-    `).join('');
+    attendeesBox.innerHTML = currentAttendees.map(p => `<div class="bg-white p-2 rounded-lg border flex justify-between items-center shadow-3xs"><span class="font-bold text-slate-800">${p.name}</span><button data-id="${p.id}" class="btn-admin-kick bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded border border-rose-200 text-[10px]">제외</button></div>`).join('');
 
     const currentAbsentees = allSystemPlayers.filter(p => !attendeesIds.includes(p.id));
-    absenteesBox.innerHTML = currentAbsentees.map(p => `
-        <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-3xs">
-            <span class="font-medium text-slate-600">${p.name} <span class="text-[10px] text-slate-400 font-mono">(${p.tier}조)</span></span>
-            <button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] cursor-pointer">➕ 참석 추가</button>
-        </div>
-    `).join('');
+    absenteesBox.innerHTML = currentAbsentees.map(p => `<div class="bg-white p-2 rounded-lg border flex justify-between items-center shadow-3xs"><span class="font-medium text-slate-600">${p.name}</span><button data-id="${p.id}" class="btn-admin-invite bg-indigo-50 text-indigo-600 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px]">➕ 참석</button></div>`).join('');
 
     document.querySelectorAll('.btn-admin-kick').forEach(btn => {
         btn.onclick = function() {
-            const pid = parseInt(this.getAttribute('data-id'));
-            let updatedList = (currentActiveSession.attendees || []).filter(id => id !== pid);
-            let updatedInjured = (currentActiveSession.injuredPlayers || []).filter(id => id !== pid);
-            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList, injuredPlayers: updatedInjured }).then(() => { buildAdminManageLists(); });
+            let updatedList = (currentActiveSession.attendees || []).filter(id => id !== parseInt(this.getAttribute('data-id')));
+            let updatedInjured = (currentActiveSession.injuredPlayers || []).filter(id => id !== parseInt(this.getAttribute('data-id')));
+            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList, injuredPlayers: updatedInjured });
         };
     });
-
     document.querySelectorAll('.btn-admin-invite').forEach(btn => {
         btn.onclick = function() {
-            const pid = parseInt(this.getAttribute('data-id'));
             let updatedList = currentActiveSession.attendees ? [...currentActiveSession.attendees] : [];
+            const pid = parseInt(this.getAttribute('data-id'));
             if (!updatedList.includes(pid)) updatedList.push(pid);
-            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList }).then(() => { buildAdminManageLists(); });
+            update(ref(db, `sessions/${targetSessionId}`), { attendees: updatedList });
         };
     });
 }
@@ -405,16 +353,12 @@ function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
     if (!select || select.options.length > 1) return;
     allSystemPlayers.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`;
-        select.appendChild(opt);
+        const opt = document.createElement('option'); opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`; select.appendChild(opt);
     });
     select.onchange = function() {
         clientSelectedMyName = this.value;
         if (currentActiveSession && currentActiveSession.status === "진행중") {
-            buildLiveCourtsDisplay(); 
-            buildLiveWaitingQueueDisplay();
-            buildSessionLiveRankTable();
+            buildLiveCourtsDisplay(); buildLiveWaitingQueueDisplay(); buildSessionLiveRankTable();
         }
     };
 }
@@ -541,8 +485,97 @@ function setupSessionEventListeners() {
 }
 
 // ==========================================
-// 🏢 개별 제어 마스터 바인딩 입구
+// 🏢 대문 통합 연동 초기화 진입로
 // ==========================================
+window.initDashboardPage = function() {
+    const sessionsRef = ref(db, 'sessions');
+    onValue(sessionsRef, (snapshot) => {
+        const data = snapshot.val();
+        const container = document.getElementById('sessionListContainer');
+        if (!container) return;
+        if (!data) { container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다.</div>`; return; }
+        const sessionEntries = Object.entries(data).reverse();
+        
+        container.innerHTML = sessionEntries.map(([id, s]) => {
+            let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
+            if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
+            if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
+            const deleteButtonHtml = isAdminMode 
+                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3 cursor-pointer">🗑️ 삭제</button>`
+                : '';
+
+            return `
+                <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-300 transition-all">
+                    <a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
+                            <span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[테스트]' : ''}</p>
+                    </a>
+                    ${deleteButtonHtml}
+                </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.btn-delete-session').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const sid = this.getAttribute('data-id');
+                if (confirm(`정말 해당 정모방(${sid})을 삭제하시겠습니까?`)) {
+                    remove(ref(db, `sessions/${sid}`)).then(() => { if(window.initDashboardPage) window.initDashboardPage(); });
+                }
+            };
+        });
+    });
+
+    const form = document.getElementById('createSessionForm');
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const title = document.getElementById('newSessionTitle').value.trim();
+            const checkboxTestMode = document.getElementById('checkboxTestMode');
+            const isTestModeChecked = checkboxTestMode ? checkboxTestMode.checked : false;
+            
+            const now = new Date();
+            const timeKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            set(ref(db, `sessions/${timeKey}`), { 
+                status: "예정", 
+                title: title, 
+                courts: 4, 
+                isTestMode: isTestModeChecked,
+                createdAt: Date.now() 
+            }).then(() => {
+                alert(`🎉 [${title}] 정모방이 정상 개설되었습니다!`);
+                document.getElementById('newSessionTitle').value = '';
+                if (checkboxTestMode) checkboxTestMode.checked = false;
+            });
+        };
+    }
+
+    const toggleBtn = document.getElementById('btnAdminToggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = function() {
+            if (!isAdminMode) {
+                const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
+                if (pw === MASTER_PASSWORD) {
+                    isAdminMode = true;
+                    this.innerText = "🔓 관리자 모드 해제";
+                    this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1";
+                    alert("🔓 관리자 인증 성공!");
+                    if(window.initDashboardPage) window.initDashboardPage();
+                }
+            } else {
+                isAdminMode = false;
+                this.innerText = "🔐 관리자 모드 인증";
+                this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1";
+                if(window.initDashboardPage) window.initDashboardPage();
+            }
+        };
+    }
+};
+
 window.initSessionPage = function() {
     const urlParams = new URLSearchParams(window.location.search);
     targetSessionId = urlParams.get('id');
@@ -572,11 +605,8 @@ window.initSessionPage = function() {
         if (!sessionData) return;
         currentActiveSession = sessionData;
         
-        if (sessionData.statsLog) {
-            sessionMmrStatsMap = sessionData.statsLog;
-        } else {
-            sessionMmrStatsMap = {};
-        }
+        if (sessionData.statsLog) sessionMmrStatsMap = sessionData.statsLog;
+        else sessionMmrStatsMap = {};
 
         if (sessionData.attendees) {
             selectedPlayerIds = new Set(sessionData.attendees);
@@ -609,24 +639,4 @@ window.initSessionPage = function() {
     });
 
     setupSessionEventListeners();
-};
-
-// 회원 명단 백오피스용 호환성 기능 유지 (players.html)
-let currentCachedPlayers = [];
-window.listenToPlayers = function(callback) {
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        let playersList = [];
-        if (data) playersList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-        playersList.sort((a, b) => a.id - b.id); currentCachedPlayers = playersList;
-        if (typeof callback === 'function') callback(playersList);
-    });
-};
-window.addNewPlayerToServer = function(name, age, tier, successCallback) {
-    let maxId = 0;
-    if (currentCachedPlayers.length > 0) maxId = Math.max(...currentCachedPlayers.map(p => p.id));
-    const nextId = maxId + 1; const targetIndex = currentCachedPlayers.length;
-    const newPlayerData = { id: nextId, name, age, tier, displayMmr: 1000, matchMmr: 1000, matchesPlayed: 0, streak: 0 };
-    set(ref(db, `players/${targetIndex}`), newPlayerData).then(() => { if (typeof successCallback === 'function') successCallback(); });
 };
