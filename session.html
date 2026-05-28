@@ -16,7 +16,7 @@
             </div>
             <nav class="flex gap-2">
                 <a href="./index.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">🏠 홈 대시보드</a>
-                <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-6 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
+                <a href="./players.html" class="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 transition shadow-xs">👥 회원 DB 관리</a>
             </nav>
         </div>
     </header>
@@ -30,19 +30,15 @@
                         <h2 class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider">⚙️ 1. 매칭 환경 설정</h2>
                     </div>
                     <div class="space-y-1.5 text-xs">
-                        <label class="text-slate-600 font-bold">정모 명칭 (타이틀)</label>
-                        <input type="text" id="inputSessionTitle" placeholder="예: 5월 마지막주 일요일 정모" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-medium focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
-                    </div>
-                    <div class="space-y-1.5 text-xs">
                         <label class="text-slate-600 font-bold">사용 가능 코트 수</label>
-                        <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors">
+                        <select id="selectCourts" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:outline-none">
                             <option value="1">1 개 코트</option>
                             <option value="2">2 개 코트</option>
                             <option value="3">3 개 코트</option>
                             <option value="4" selected>4 개 코트</option>
                         </select>
                     </div>
-                    <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-md text-xs cursor-pointer">▶️ 정모 매칭 리그전 시작하기</button>
+                    <button id="btnStartSession" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg text-xs cursor-pointer">▶️ 정모 매칭 리그전 시작하기</button>
                 </section>
             </div>
             <div class="md:col-span-2">
@@ -60,7 +56,6 @@
         </div>
 
         <div id="viewLive" class="grid grid-cols-1 gap-6" style="display:none;">
-            
             <div class="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
                 <div>
                     <h2 class="text-sm font-black text-slate-900" id="liveSessionNameDisplay">🏆 라이브 리그전 진행 중</h2>
@@ -70,45 +65,37 @@
                     🛑 오늘 정모 최종 종료 및 마감
                 </button>
             </div>
-
-            <div id="courtsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                </div>
+            <div id="courtsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
         </div>
 
-        <div id="viewArchive" class="hidden text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm" style="display:none;">
-            <h2 class="text-lg font-bold text-indigo-600">📝 정모 세션 마감 완료 (기록실)</h2>
-            <p class="text-xs text-slate-500 mt-2">오늘 경기가 모두 종료되어 안전하게 저장되었습니다. 메인 대문으로 이동해 주세요.</p>
+        <div id="viewArchive" class="text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm" style="display:none;">
+            <h2 class="text-lg font-bold text-indigo-600">📝 본 정모 세션 최종 마감 완료 (기록실)</h2>
+            <p class="text-xs text-slate-500 mt-2" id="archiveSessionNameDisplay">경기가 모두 안전하게 종료되었습니다.</p>
+            <div class="max-w-md mx-auto mt-4 p-4 bg-slate-50 rounded-xl border text-left text-xs text-slate-500 font-mono">
+                💡 정모가 마감되어 대진 조작이 비활성화되었습니다. (추후 이곳에 그날의 최종 득실 기록 정산서가 박제되어 노출됩니다.)
+            </div>
         </div>
 
     </main>
 
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 shadow-2xl" style="display: none;">
-        <div class="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div class="border-b border-slate-100 pb-2">
-                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider" id="modalCourtTitle">🏟️ 1번 코트 경기 결과 입력</h3>
-                <p class="text-[11px] text-slate-400 mt-0.5">해당 매치의 세트 정산 스코어를 정확히 입력하세요.</p>
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider" id="modalCourtTitle">🏟️ 결과 입력</h3>
             </div>
-            
             <div class="space-y-4">
-                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                    <div class="text-left">
-                        <span class="text-[10px] font-bold text-rose-500 block">TEAM A</span>
-                        <span id="modalTeamANames" class="text-xs font-bold text-slate-800">선수 목록</span>
-                    </div>
-                    <input type="number" id="scoreA" min="0" max="31" value="0" class="w-16 bg-white border border-slate-200 rounded-lg p-2 text-center text-base font-black font-mono text-slate-900 focus:border-indigo-500 focus:outline-none">
+                <div class="bg-slate-50 p-3 rounded-xl border flex justify-between items-center">
+                    <div class="text-left"><span class="text-[10px] font-bold text-rose-500 block">TEAM A</span><span id="modalTeamANames" class="text-xs font-bold text-slate-800"></span></div>
+                    <input type="number" id="scoreA" min="0" max="31" value="0" class="w-16 bg-white border rounded-lg p-2 text-center text-base font-black font-mono">
                 </div>
-                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                    <div class="text-left">
-                        <span class="text-[10px] font-bold text-sky-500 block">TEAM B</span>
-                        <span id="modalTeamBNames" class="text-xs font-bold text-slate-800">선수 목록</span>
-                    </div>
-                    <input type="number" id="scoreB" min="0" max="31" value="0" class="w-16 bg-white border border-slate-200 rounded-lg p-2 text-center text-base font-black font-mono text-slate-900 focus:border-indigo-500 focus:outline-none">
+                <div class="bg-slate-50 p-3 rounded-xl border flex justify-between items-center">
+                    <div class="text-left"><span class="text-[10px] font-bold text-sky-500 block">TEAM B</span><span id="modalTeamBNames" class="text-xs font-bold text-slate-800"></span></div>
+                    <input type="number" id="scoreB" min="0" max="31" value="0" class="w-16 bg-white border rounded-lg p-2 text-center text-base font-black font-mono">
                 </div>
             </div>
-
             <div class="flex gap-2 pt-2 text-xs">
-                <button id="btnCancelModal" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-lg transition cursor-pointer">취소</button>
-                <button id="btnSubmitScore" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition cursor-pointer shadow-md">경기 확정 정산</button>
+                <button id="btnCancelModal" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-lg">취소</button>
+                <button id="btnSubmitScore" class="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-lg">경기 확정 정산</button>
             </div>
         </div>
     </div>
