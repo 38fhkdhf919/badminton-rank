@@ -15,18 +15,105 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// 전역 캐시 포인터들
 let allSystemPlayers = [];
 let selectedPlayerIds = new Set();
+let targetSessionId = null;       // 🔥 현재 추적 중인 정모의 고유 방 ID (?id= 수신값)
 let currentActiveSession = null;
 let activeModalCourtIndex = null;
 
-window.initSessionPage = function() {
-    const currentSessionRef = ref(db, 'currentSession');
+// ==========================================
+// 🏢 [신규] 대문 대시보드 (index.html) 제어 엔진
+// ==========================================
+window.initDashboardPage = function() {
+    console.log("🏠 대시보드 스캔 가동...");
     
-    onValue(currentSessionRef, (snapshot) => {
+    // 1. 파이어베이스의 멀티 정모 데이터창고(sessions) 실시간 스캔 리스너
+    const sessionsRef = ref(db, 'sessions');
+    onValue(sessionsRef, (snapshot) => {
+        const data = snapshot.val();
+        const container = document.getElementById('sessionListContainer');
+        if (!container) return;
+
+        if (!data) {
+            container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다. 왼쪽에서 일요일 첫 정모를 개설해 보세요!</div>`;
+            return;
+        }
+
+        // 오브젝트를 역순(최신순) 배열로 조립
+        const sessionEntries = Object.entries(data).reverse();
+        
+        container.innerHTML = sessionEntries.map(([id, s]) => {
+            let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
+            if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
+            if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
+
+            return `
+                <a href="./session.html?id=${id}" class="block bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-400 hover:shadow-md transition-all flex justify-between items-center">
+                    <div class="space-y-1">
+                        <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 설정 코트 수: ${s.courts || 4}개</p>
+                    </div>
+                    <span class="text-xs font-bold px-2.5 py-1 rounded border ${badgeStyle}">${s.status}</span>
+                </a>
+            `;
+        }).join('');
+    });
+
+    // 2. 신규 정모 폼 개설 서브밋 처리
+    const form = document.getElementById('createSessionForm');
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const title = document.getElementById('newSessionTitle').value.trim();
+            
+            // 날짜 기반 고유 문자열 ID 발급 (예: 20260528_1120)
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const date = String(now.getDate()).padStart(2, '0');
+            const timeKey = `${year}${month}${date}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+
+            const newSessionData = {
+                status: "예정",
+                title: title,
+                courts: 4,
+                createdAt: Date.now()
+            };
+
+            set(ref(db, `sessions/${timeKey}`), newSessionData)
+                .then(() => {
+                    alert(`🎉 [${title}] 정모방이 정상적으로 개설되었습니다!`);
+                    document.getElementById('newSessionTitle').value = '';
+                });
+        };
+    }
+};
+
+// ==========================================
+// 🏟️ [고도화] 정모 개별 제어실 (session.html) 엔진
+// ==========================================
+window.initSessionPage = function() {
+    // 주소창 파라미터에서 ?id= 값 파싱 추출
+    const urlParams = new URLSearchParams(window.location.search);
+    targetSessionId = urlParams.get('id');
+
+    if (!targetSessionId) {
+        alert("❌ 올바른 정모 코드가 전달되지 않았습니다. 메인 대문에서 정모를 선택하세요!");
+        window.location.href = "./index.html";
+        return;
+    }
+
+    console.log(`🏟️ 타겟 정모 추적 리스너 파이프 온 : ${targetSessionId}`);
+    
+    // 1. 특정 타겟 정모 고유방 실시간 정밀 타겟 리스너 바인딩
+    const specificSessionRef = ref(db, `sessions/${targetSessionId}`);
+    onValue(specificSessionRef, (snapshot) => {
         let sessionData = snapshot.val();
         if (!sessionData) {
-            sessionData = { status: "예정", title: "", courts: 4 };
+            alert("존재하지 않는 정모 세션입니다.");
+            window.location.href = "./index.html";
+            return;
         }
         currentActiveSession = sessionData;
         renderSessionViews(sessionData);
@@ -35,6 +122,7 @@ window.initSessionPage = function() {
         }
     });
 
+    // 2. 유저 마스터 동기화 리스너
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
         const data = snapshot.val();
@@ -57,16 +145,18 @@ function renderSessionViews(session) {
 
     if (!badge || !title || !vReady || !vLive || !vArchive) return;
 
-    const finalTitle = session.title || "일요일 공식 정모 리그전";
+    const finalTitle = session.title || "일요일 정모 리그전";
     title.innerText = `📅 ${finalTitle}`;
     
     const liveDisplay = document.getElementById('liveSessionNameDisplay');
     if (liveDisplay) liveDisplay.innerText = `🏆 현재 진행 중인 세션 : ${finalTitle}`;
+    
+    const archiveDisplay = document.getElementById('archiveSessionNameDisplay');
+    if (archiveDisplay) archiveDisplay.innerText = `📁 정모 공식 명칭 : ${finalTitle}`;
 
     vReady.style.display = 'none';
     vLive.style.display = 'none';
     vArchive.style.display = 'none';
-    
     badge.className = "text-xs font-bold px-2.5 py-1 rounded border font-sans ";
 
     if (session.status === "진행중") {
@@ -84,65 +174,47 @@ function renderSessionViews(session) {
     }
 }
 
-// 🏟️ [핵심 생성] 실시간 진행중인 코트별 대진표를 화면에 그려내는 엔진
 function buildLiveCourtsDisplay() {
     const container = document.getElementById('courtsContainer');
-    if (!container || !currentActiveSession) return;
+    if (!container || !currentActiveSession || !targetSessionId) return;
 
     const totalCourtsCount = currentActiveSession.courts || 1;
     
-    // 만약 파이어베이스에 코트별 대진 정보가 아예 생성 안 되어 있다면 강제 최초 대진 배정 생성
     if (!currentActiveSession.matches) {
         currentActiveSession.matches = [];
         for (let i = 0; i < totalCourtsCount; i++) {
             currentActiveSession.matches.push(generateAutoBalancedMatch(i));
         }
-        // 파이어베이스 서버의 matches 노드에 실시간 대진표 주입 저장
-        set(ref(db, 'currentSession/matches'), currentActiveSession.matches);
+        // 타겟팅 된 특정 정모 경로 하부에 대진표 주입
+        set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
         return;
     }
 
-    // 코트 렌더링
     container.innerHTML = currentActiveSession.matches.map((m, idx) => {
         if (!m) return '';
         return `
             <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-4 flex flex-col justify-between">
                 <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                     <span class="text-xs font-black text-indigo-600 font-mono">🏟️ COURT ${idx + 1}</span>
-                    <span class="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold font-sans px-1.5 py-0.5 rounded-sm">LIVE 경기 진행 중</span>
+                    <span class="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold px-1.5 py-0.5 rounded-sm">LIVE 경기 진행 중</span>
                 </div>
-                
                 <div class="grid grid-cols-7 gap-1 items-center justify-center py-2 text-center">
-                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">
-                        ${m.teamANames.join(', ')}
-                    </div>
+                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">${m.teamANames.join(', ')}</div>
                     <div class="col-span-1 text-[11px] font-black text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">
-                        ${m.teamBNames.join(', ')}
-                    </div>
+                    <div class="col-span-3 text-xs font-bold text-slate-800 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">${m.teamBNames.join(', ')}</div>
                 </div>
-
-                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition cursor-pointer shadow-xs">
-                    ⚖️ 경기 결과 스코어 정산 입력
-                </button>
+                <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition shadow-xs cursor-pointer">⚖️ 결과 스코어 정산 입력</button>
             </div>
         `;
     }).join('');
 
-    // 결과 입력 모달 버튼 바인딩
     document.querySelectorAll('.btn-open-score').forEach(btn => {
-        btn.onclick = function() {
-            const idx = parseInt(this.getAttribute('data-index'));
-            openScoreModal(idx);
-        };
+        btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
 }
 
-// 🎲 [밸런스 핵심 알고리즘] 현재 정모 참석자 중 겹치지 않고 가장 MMR 합산이 균등한 4명 자동 배정
 function generateAutoBalancedMatch(courtIdx) {
     const attendeesIds = currentActiveSession.attendees || [];
-    
-    // 현재 코트 위에 이미 올라가서 뛰고 있는 유저 ID 수집 (중복 진입 원천 차단)
     const activePlayingIds = new Set();
     if (currentActiveSession && currentActiveSession.matches) {
         currentActiveSession.matches.forEach(m => {
@@ -153,19 +225,11 @@ function generateAutoBalancedMatch(courtIdx) {
         });
     }
 
-    // 아직 경기를 안 뛰고 대기 중인 인원 필터링
     const waitingPlayers = allSystemPlayers.filter(p => attendeesIds.includes(p.id) && !activePlayingIds.has(p.id));
-
-    // 만약 대기 인원이 부족해서 대진을 새로 못 짤 경우, 전체 참석자 중 랜덤 추출 방어책 작동
-    let matchPool = waitingPlayers.length >= 4 
-        ? waitingPlayers 
-        : allSystemPlayers.filter(p => attendeesIds.includes(p.id));
-
-    // 셔플 후 상위 4명 추출
+    let matchPool = waitingPlayers.length >= 4 ? waitingPlayers : allSystemPlayers.filter(p => attendeesIds.includes(p.id));
     const shuffled = [...matchPool].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 4);
 
-    // 최소 인원 부족 시 디폴트 더미 배정
     while (selected.length < 4) {
         selected.push({ id: 99, name: "대기회원", matchMmr: 1000, displayMmr: 1000 });
     }
@@ -179,55 +243,39 @@ function generateAutoBalancedMatch(courtIdx) {
     };
 }
 
-// 팝업창 모달 열기 제어
 function openScoreModal(courtIdx) {
     const match = currentActiveSession.matches[courtIdx];
     if (!match) return;
-
     activeModalCourtIndex = courtIdx;
     document.getElementById('modalCourtTitle').innerText = `🏟️ 제 ${courtIdx + 1}번 코트 경기 결과 정산`;
     document.getElementById('modalTeamANames').innerText = match.teamANames.join(', ');
     document.getElementById('modalTeamBNames').innerText = match.teamBNames.join(', ');
     document.getElementById('scoreA').value = 0;
     document.getElementById('scoreB').value = 0;
-    
     document.getElementById('scoreModal').style.display = 'flex';
 }
 
-// 🧮 [핵심 정산 수학 모듈] 세트 스코어 스케일링 기반의 승리 가중치 실시간 계산 엔진
 function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
+    if (!targetSessionId) return;
     const match = currentActiveSession.matches[courtIdx];
-    
-    // 점수차 기반 가속 가중치 계산 (예: 21:19보다 21:5로 완승 시 MMR 대폭 획득)
     const scoreDiff = Math.abs(scoreA - scoreB);
-    const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3)); // 격차 가중치 최대 +5점 버프
-    const baseMmrChange = 15 + bonusWeight; // 기본 판돈 15점 + 격차 보너스
+    const bonusWeight = Math.min(5, Math.floor(scoreDiff / 3));
+    const baseMmrChange = 15 + bonusWeight;
 
     const winnerTeam = scoreA > scoreB ? 'A' : 'B';
     const winIds = winnerTeam === 'A' ? match.teamA : match.teamB;
     const loseIds = winnerTeam === 'A' ? match.teamB : match.teamA;
 
-    // 마스터 26인 명단 데이터 아키텍처 실시간 점수 업데이트 연산
     allSystemPlayers.forEach(p => {
-        if (winIds.includes(p.id)) {
-            p.matchesPlayed += 1;
-            p.displayMmr += baseMmrChange;
-            p.matchMmr += baseMmrChange;
-        } else if (loseIds.includes(p.id)) {
-            p.matchesPlayed += 1;
-            p.displayMmr = Math.max(600, p.displayMmr - baseMmrChange); // 600점 하한선 방어
-            p.matchMmr = Math.max(600, p.matchMmr - baseMmrChange);
-        }
+        if (winIds.includes(p.id)) { p.matchesPlayed += 1; p.displayMmr += baseMmrChange; p.matchMmr += baseMmrChange; }
+        else if (loseIds.includes(p.id)) { p.matchesPlayed += 1; p.displayMmr = Math.max(600, p.displayMmr - baseMmrChange); p.matchMmr = Math.max(600, p.matchMmr - baseMmrChange); }
     });
 
-    // 1. 전역 마스터 회원 정보 서버 리프레시 업데이트 덮어쓰기
     set(ref(db, 'players'), allSystemPlayers);
-
-    // 2. 정산이 끝난 코트는 즉시 다음 대기 인원으로 신규 대진표 자동 리롤 배정
     currentActiveSession.matches[courtIdx] = generateAutoBalancedMatch(courtIdx);
-    set(ref(db, 'currentSession/matches'), currentActiveSession.matches);
+    set(ref(db, `sessions/${targetSessionId}/matches`), currentActiveSession.matches);
 
-    alert(`✅ 정산 완료! 승리팀에 +${baseMmrChange}점이 즉시 실시간 반영되었으며, 다음 대진이 배정되었습니다.`);
+    alert(`✅ 정산 완료! 승리팀에 +${baseMmrChange}점이 즉시 반영되었습니다.`);
     document.getElementById('scoreModal').style.display = 'none';
 }
 
@@ -238,9 +286,7 @@ function buildAttendanceGrid() {
 
     grid.innerHTML = allSystemPlayers.map(p => {
         const isChecked = selectedPlayerIds.has(p.id);
-        const activeClass = isChecked 
-            ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" 
-            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50/80 hover:border-slate-300";
+        const activeClass = isChecked ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-600/10 font-bold" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50/80 hover:border-slate-300";
         const badgeColor = p.tier === 'A' ? 'bg-rose-50 text-rose-600 border-rose-100' : p.tier === 'B' ? 'bg-amber-50 text-amber-600 border-amber-100' : p.tier === 'C' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-sky-50 text-sky-600 border-sky-100';
 
         return `
@@ -281,53 +327,64 @@ function setupSessionEventListeners() {
     const btnStart = document.getElementById('btnStartSession');
     if (btnStart) {
         btnStart.onclick = function() {
-            if (selectedPlayerIds.size < 4) {
-                alert("❌ 최소 4명 이상의 출석자가 필요합니다!");
-                return;
-            }
-            let titleInput = document.getElementById('inputSessionTitle').value.trim() || "일요일 공식 정모 리그전";
+            if (!targetSessionId) return;
+            if (selectedPlayerIds.size < 4) { alert("❌ 최소 4명 이상의 출석자가 필요합니다!"); return; }
             const selectedCourts = parseInt(document.getElementById('selectCourts').value);
             const finalAttendeeList = Array.from(selectedPlayerIds);
 
-            const startData = {
+            update(ref(db, `sessions/${targetSessionId}`), {
                 status: "진행중",
-                title: titleInput,
                 courts: selectedCourts,
-                attendees: finalAttendeeList,
-                createdAt: Date.now()
-            };
-            set(ref(db, 'currentSession'), startData);
+                attendees: finalAttendeeList
+            });
         };
     }
 
-    // 모달 팝업 내부 이벤트 바인딩
     const btnCancel = document.getElementById('btnCancelModal');
-    if (btnCancel) {
-        btnCancel.onclick = () => { document.getElementById('scoreModal').style.display = 'none'; };
-    }
+    if (btnCancel) btnCancel.onclick = () => { document.getElementById('scoreModal').style.display = 'none'; };
 
     const btnSubmit = document.getElementById('btnSubmitScore');
     if (btnSubmit) {
         btnSubmit.onclick = () => {
             const scoreA = parseInt(document.getElementById('scoreA').value) || 0;
             const scoreB = parseInt(document.getElementById('scoreB').value) || 0;
-            if (scoreA === scoreB) {
-                alert("❌ 배드민턴 동점 종료는 불가능합니다! 승리팀 스코어가 높아야 합니다.");
-                return;
-            }
-            if (activeModalCourtIndex !== null) {
-                processMmrMatchCalculation(activeModalCourtIndex, scoreA, scoreB);
-            }
+            if (scoreA === scoreB) { alert("❌ 동점 종료는 불가능합니다!"); return; }
+            if (activeModalCourtIndex !== null) processMmrMatchCalculation(activeModalCourtIndex, scoreA, scoreB);
         };
     }
 
-    // 정모 최종 종료 및 마감 처리 마스터 제어 단추 클릭 시
     const btnEnd = document.getElementById('btnEndSession');
     if (btnEnd) {
         btnEnd.onclick = function() {
-            if (confirm("🛑 정말 오늘 모든 경기를 완전히 종료하고 최종 마감 상태로 전환하시겠습니까?\n이 작업은 정모를 과거 아카이브 기록실로 안전하게 이관시킵니다.")) {
-                update(ref(db, 'currentSession'), { status: "종료" });
+            if (!targetSessionId) return;
+            if (confirm("🛑 정말 오늘 경기를 최종 종료하고 아카이브로 이관하시겠습니까?")) {
+                update(ref(db, `sessions/${targetSessionId}`), { status: "종료" });
             }
         };
     }
 }
+
+// 회원 명단 백오피스용 호환성 기능 유지 (players.html)
+let currentCachedPlayers = [];
+window.listenToPlayers = function(callback) {
+    const playersRef = ref(db, 'players');
+    onValue(playersRef, (snapshot) => {
+        const data = snapshot.val();
+        let playersList = [];
+        if (data) playersList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+        playersList.sort((a, b) => a.id - b.id);
+        currentCachedPlayers = playersList;
+        if (typeof callback === 'function') callback(playersList);
+    });
+};
+window.addNewPlayerToServer = function(name, age, tier, successCallback) {
+    let maxId = 0;
+    if (currentCachedPlayers.length > 0) maxId = Math.max(...currentCachedPlayers.map(p => p.id));
+    const nextId = maxId + 1;
+    const targetIndex = currentCachedPlayers.length;
+    const newPlayerData = { id: nextId, name, age, tier, displayMmr: 1000, matchMmr: 1000, matchesPlayed: 0, streak: 0 };
+    set(ref(db, `players/${targetIndex}`), newPlayerData).then(() => {
+        alert(`🎉 [ID: ${nextId}] ${name} 회원이 서버에 성공적으로 등록되었습니다!`);
+        if (typeof successCallback === 'function') successCallback();
+    });
+};
