@@ -5,15 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏆 클럽 매칭 및 명예의 전당</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* 테두리 이글이글 그라데이션 회전 효과용 애니메이션 정의 */
         @keyframes border-glow {
             0%, 100% { border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
             50% { border-color: #f97316; box-shadow: 0 0 20px rgba(249, 115, 22, 0.8); }
         }
-        .fire-rank-card {
-            animation: border-glow 2s infinite ease-in-out;
-        }
+        .fire-rank-card { animation: border-glow 2s infinite ease-in-out; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
@@ -25,17 +23,13 @@
                 <p class="text-xs text-indigo-200 mt-1 font-medium">우리 클럽의 모든 실시간 정모 매칭과 누적 명예의 전당 아카이브</p>
             </div>
             <div>
-                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                    🔐 마스터 관리자 인증
-                </button>
+                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5"></button>
             </div>
         </div>
     </header>
 
     <main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         <section class="lg:col-span-5 space-y-6">
-            
             <div id="testModeWrapper" class="bg-gradient-to-br from-indigo-50 to-slate-50 border-2 border-indigo-200 p-5 rounded-2xl shadow-sm hidden flex-col gap-4">
                 <div class="flex items-center gap-2 border-b border-indigo-100 pb-2">
                     <span class="text-lg">👑</span>
@@ -44,35 +38,26 @@
                 <form id="createSessionForm" class="space-y-4">
                     <div>
                         <label class="block text-xs font-black text-slate-700 mb-1">📝 정모 명칭</label>
-                        <input type="text" id="newSessionTitle" placeholder="예: 일요일 공식 정모 리그전" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-medium" required>
+                        <input type="text" id="newSessionTitle" placeholder="예: 일요일 공식 정모 리그전" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs outline-none font-medium" required>
                     </div>
-                    
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-black text-slate-700 mb-1">📅 정모 날짜</label>
-                            <input type="date" id="newSessionDate" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-mono font-medium" required>
+                            <input type="date" id="newSessionDate" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs outline-none font-mono font-medium" required>
                         </div>
                         <div>
                             <label class="block text-xs font-black text-slate-700 mb-1">🎯 목표 승리 점수 설정</label>
                             <div class="flex gap-2 items-center h-[34px]">
-                                <label class="inline-flex items-center gap-1 text-xs font-bold text-slate-700 cursor-pointer">
-                                    <input type="radio" name="targetScore" value="21" checked class="text-indigo-600 focus:ring-indigo-500"> 21점
-                                </label>
-                                <label class="inline-flex items-center gap-1 text-xs font-bold text-slate-700 cursor-pointer ml-2">
-                                    <input type="radio" name="targetScore" value="25" class="text-indigo-600 focus:ring-indigo-500"> 25점
-                                </label>
-                                <label class="inline-flex items-center gap-1 text-xs font-bold text-slate-700 cursor-pointer ml-2">
-                                    <input type="radio" name="targetScore" value="15" class="text-indigo-600 focus:ring-indigo-500"> 15점
-                                </label>
+                                <label class="text-xs font-bold text-slate-700 cursor-pointer"><input type="radio" name="targetScore" value="21" checked> 21점</label>
+                                <label class="text-xs font-bold text-slate-700 cursor-pointer ml-2"><input type="radio" name="targetScore" value="25"> 25점</label>
+                                <label class="text-xs font-bold text-slate-700 cursor-pointer ml-2"><input type="radio" name="targetScore" value="15"> 15점</label>
                             </div>
                         </div>
                     </div>
-                    
                     <div class="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-slate-200">
-                        <input type="checkbox" id="checkboxTestMode" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer">
+                        <input type="checkbox" id="checkboxTestMode" class="w-4 h-4 text-purple-600 rounded">
                         <label for="checkboxTestMode" class="text-[11px] font-bold text-purple-900 cursor-pointer select-none">🤖 AI 가상 시뮬레이터 테스트 모드 활성화</label>
                     </div>
-
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs py-2.5 rounded-xl transition shadow-sm cursor-pointer">🚀 정모 개설 및 실시간 링크 배포</button>
                 </form>
             </div>
@@ -82,38 +67,31 @@
                     <h2 class="text-xs font-black tracking-wider text-slate-400 uppercase">📅 정모 대시보드 링크</h2>
                     <span id="sessionCountBadge" class="bg-slate-200 text-slate-700 font-mono font-bold text-[10px] px-2 py-0.5 rounded-full">0개 방</span>
                 </div>
-                <div id="sessionListContainer" class="space-y-3">
-                    <div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">서버에서 클럽 정모 로그를 수신하고 있습니다...</div>
-                </div>
+                <div id="sessionListContainer" class="space-y-3"></div>
             </div>
         </section>
 
         <section class="lg:col-span-7 space-y-6">
-            
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
                 <div class="flex items-center gap-1.5 mb-2">
                     <span class="text-sm">🔍</span>
                     <h2 class="text-xs font-black text-slate-700">역대 전적 돋보기 검색 (클럽 아카이브 추적)</h2>
                 </div>
                 <div class="flex gap-2">
-                    <input type="text" id="inputGlobalSearchPlayer" placeholder="회원 이름을 입력해 주세요 (예: 박상우)" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-sans font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    <input type="text" id="inputGlobalSearchPlayer" placeholder="회원 이름을 입력해 주세요" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                     <button id="btnGlobalSearchRecord" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">검색</button>
                 </div>
-                <div id="globalSearchResultContainer" class="mt-3 max-h-[220px] overflow-y-auto space-y-2.5 scrollbar-thin">
-                    </div>
+                <div id="globalSearchResultContainer" class="mt-3 max-h-[220px] overflow-y-auto space-y-2.5 scrollbar-thin"></div>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="text-lg">🏆</span>
-                        <div>
-                            <h2 class="text-sm font-black text-slate-900">클럽 누적 레이팅 통합 랭킹보드</h2>
-                            <p class="text-[10px] text-slate-400 font-medium">모든 정모 기록이 누적 연산되어 수시로 갱신되는 공식 명예의 전당</p>
-                        </div>
+                <div class="flex items-center gap-2 border-b border-slate-100 pb-3 mb-3">
+                    <span class="text-lg">🏆</span>
+                    <div>
+                        <h2 class="text-sm font-black text-slate-900">클럽 누적 레이팅 통합 랭킹보드</h2>
+                        <p class="text-[10px] text-slate-400 font-medium">이름을 클릭하면 개인별 실시간 성장 대진 분석 그래프가 나타납니다.</p>
                     </div>
                 </div>
-
                 <div class="overflow-x-auto rounded-xl border border-slate-100">
                     <table class="w-full text-left border-collapse min-w-[500px]">
                         <thead>
@@ -126,30 +104,32 @@
                                 <th class="py-2.5 px-4 text-right w-24">통합 MMR</th>
                             </tr>
                         </thead>
-                        <tbody id="globalRankTableBody" class="text-xs text-slate-700 divide-y divide-slate-100 font-sans">
-                            <tr>
-                                <td colspan="6" class="py-8 text-center text-slate-400">데이터를 집계 중입니다...</td>
-                            </tr>
-                        </tbody>
+                        <tbody id="globalRankTableBody" class="text-xs text-slate-700 divide-y divide-slate-100 font-sans"></tbody>
                     </table>
                 </div>
             </div>
         </section>
     </main>
 
+    <div id="chartModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-slate-100 transform transition-all space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h3 id="modalPlayerTitle" class="text-sm font-black text-slate-900">회원 역대 분석 데이터</h3>
+                <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 font-black text-sm p-1 cursor-pointer">✕</button>
+            </div>
+            <div class="relative w-full h-56">
+                <canvas id="playerTrendChart"></canvas>
+            </div>
+            <p class="text-[10px] text-slate-400 text-center font-medium">최근 치러진 7개 경기의 누적 레이팅(MMR) 변화 추이 지표</p>
+        </div>
+    </div>
+
     <script type="module" src="./app.js"></script>
     <script>
-        // DOM과 비동기 모듈 로딩 타이밍 어긋남을 완벽히 제어하는 안전 시동 장치
         window.addEventListener('load', () => {
             setTimeout(() => {
-                if (typeof window.initDashboardPage === 'function') {
-                    window.initDashboardPage();
-                    console.log("🚀 대시보드 모바일 반응형 마스터 엔진 시동 성공!");
-                } else {
-                    console.warn("대시보드 로딩 지연 - 2차 시동 트리거 대기");
-                    setTimeout(() => { if(window.initDashboardPage) window.initDashboardPage(); }, 500);
-                }
-            }, 250); // 0.25초의 안정화 버퍼 장착
+                if (typeof window.initDashboardPage === 'function') { window.initDashboardPage(); }
+            }, 300);
         });
     </script>
 </body>
