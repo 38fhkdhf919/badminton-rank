@@ -313,7 +313,7 @@ function buildSessionLiveRankTable() {
         let deltaHtml = `<span class="text-slate-400 font-bold font-mono">0</span>`;
         if (stats.delta > 0) deltaHtml = `<span class="text-emerald-600 font-extrabold font-mono">+${stats.delta}</span>`;
         if (stats.delta < 0) deltaHtml = `<span class="text-rose-600 font-extrabold font-mono">${stats.delta}</span>`;
-        const isMeRow = p.name === clientSelectedMyName ? "bg-amber-50/60 font-bold" : "";
+        const isMeRow = p.name === clientSelectedMyName ? "bg-amber-50/40 font-bold border-l-4 border-amber-500" : "";
         return `<tr class="hover:bg-slate-50/60 transition-colors ${isMeRow}"><td class="py-3 px-4 text-center font-bold text-slate-400 font-mono">${idx + 1}</td><td class="py-3 px-4 font-black text-slate-800">${p.name} <span class="text-[10px] text-slate-400">(${p.tier}조)</span></td><td class="py-3 px-4 text-center font-mono">${stats.win+stats.lose}판</td><td class="py-3 px-4 text-center font-mono text-slate-500">${stats.win}승/${stats.lose}패</td><td class="py-3 px-4 text-right font-black font-mono">${p.displayMmr}</td><td class="py-3 px-4 text-right">${deltaHtml}</td></tr>`;
     }).join('');
 }
@@ -347,33 +347,35 @@ function buildAdminManageLists() {
     });
 }
 
-// 👤 [수정 및 연계] 내 이름 드롭다운 그리기 (로컬 스토리지 연동 브라우저 박제 기법 이식)
+// 👤 [버그 완전 해결] 내 이름 드롭다운 동기화 그리기
 function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
-    if (!select || select.options.length > 1) return;
+    if (!select) return;
     
-    allSystemPlayers.forEach(p => {
-        const opt = document.createElement('option'); 
-        opt.value = p.name; 
-        opt.innerText = `${p.name} (${p.tier}조)`; 
-        select.appendChild(opt);
-    });
+    // 이미 노드가 다 채워져 있다면 중복 생성 스킵
+    if (select.options.length <= 1) {
+        allSystemPlayers.forEach(p => {
+            const opt = document.createElement('option'); 
+            opt.value = p.name; 
+            opt.innerText = `${p.name} (${p.tier}조)`; 
+            select.appendChild(opt);
+        });
+    }
 
-    // 💾 [핵심] 브라우저 디스크에 저장되어 있던 나의 고정 ID 파싱 호출
+    // 🔥 [타이밍 동기화 체인] 렌더링이 완전히 끝난 직후 로컬 스토리지 보존값 셋업 고정
     const savedName = localStorage.getItem("myClubFixedName");
-    if (savedName) {
+    if (savedName && select.value !== savedName) {
         clientSelectedMyName = savedName;
-        select.value = savedName; // 드롭다운 위치 강제 포커싱 고정
+        select.value = savedName; // 새로고침 시 강제 고정!!
+        console.log(`💾 로컬 스토리지 본인 인증 영구 동기화 복원 완료: ${savedName}`);
     }
 
     select.onchange = function() {
         clientSelectedMyName = this.value;
-        
-        // 💾 드롭다운을 바꿀 때마다 로컬 스토리지 메모리에 영구 압착 저장!
         if (clientSelectedMyName) {
             localStorage.setItem("myClubFixedName", clientSelectedMyName);
         } else {
-            localStorage.removeItem("myClubFixedName"); // 일반 관람 모드 시 클리어
+            localStorage.removeItem("myClubFixedName");
         }
 
         if (currentActiveSession && currentActiveSession.status === "진행중") {
@@ -532,12 +534,24 @@ window.initDashboardPage = function() {
                             <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
                             <span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span>
                         </div>
-                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[시뮬레이션 모드]' : ''}</p>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[시뮬레이션]' : ''}</p>
                     </a>
                     ${deleteButtonHtml}
                 </div>
             `;
         }).join('');
+
+        // 렌더링 루프가 끝난 뒤 현재 관리자 상태가 true면 무조건 체크박스 강제 노출 보정 유지
+        const wrapper = document.getElementById('testModeWrapper');
+        if (wrapper) {
+            if (isAdminMode) {
+                wrapper.style.display = 'flex';
+                wrapper.classList.remove('hidden');
+            } else {
+                wrapper.style.display = 'none';
+                wrapper.classList.add('hidden');
+            }
+        }
 
         document.querySelectorAll('.btn-delete-session').forEach(btn => {
             btn.onclick = function(e) {
@@ -578,7 +592,7 @@ window.initDashboardPage = function() {
     const toggleBtn = document.getElementById('btnAdminToggle');
     if (toggleBtn) {
         toggleBtn.onclick = function() {
-            const wrapper = document.getElementById('testModeWrapper'); // 대문 보라색 체크박스 틀 ID 스캔
+            const wrapper = document.getElementById('testModeWrapper');
             if (!isAdminMode) {
                 const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
                 if (pw === MASTER_PASSWORD) {
@@ -586,14 +600,20 @@ window.initDashboardPage = function() {
                     this.innerText = "🔓 관리자 모드 해제";
                     this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1";
                     alert("🔓 관리자 인증 성공!");
-                    if (wrapper) wrapper.classList.remove('hidden'); // 🔥 [해결] 관리자 모드일 때만 보라색 체크박스 노출!!
+                    if (wrapper) {
+                        wrapper.style.display = 'flex';
+                        wrapper.classList.remove('hidden');
+                    }
                     if(window.initDashboardPage) window.initDashboardPage();
                 }
             } else {
                 isAdminMode = false;
                 this.innerText = "🔐 관리자 모드 인증";
                 this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1";
-                if (wrapper) wrapper.classList.add('hidden'); // 🔒 해제 시 다시 완벽하게 숨김!!
+                if (wrapper) {
+                    wrapper.style.display = 'none';
+                    wrapper.classList.add('hidden');
+                }
                 if(window.initDashboardPage) window.initDashboardPage();
             }
         };
@@ -655,7 +675,7 @@ window.initSessionPage = function() {
             allSystemPlayers.sort((a, b) => a.id - b.id);
         }
         buildAttendanceGrid();
-        buildIdentityDropdown(); // 🌟 내 이름 세팅 시 스토리지 복원 자동 실행
+        buildIdentityDropdown(); // 🌟 옵션 정보 수급 완료 후 고정 아이디 트랙 강제 복원 유도
         if (currentActiveSession && currentActiveSession.status === "진행중") {
             buildSessionLiveRankTable();
             buildAdminManageLists(); 
