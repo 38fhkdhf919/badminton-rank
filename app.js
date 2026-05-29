@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 🔥 [여기에 추가] 대시보드 관리자 모드용 마스터 전역 변수 선언
+// 관리자 모드 제어 핵심 마스터 전역 변수
 let isAdminMode = false;
 const MASTER_PASSWORD = "1234";
 
@@ -186,7 +186,6 @@ function buildLiveCourtsDisplay() {
         const isMyMatch = m.teamANames.includes(clientSelectedMyName) || m.teamBNames.includes(clientSelectedMyName);
         const highlightClass = isMyMatch ? "border-amber-400 bg-amber-50/50 ring-4 ring-amber-400/10 scale-[1.01]" : "bg-white border-slate-200";
 
-        // 🔥 [테스트 모드 자동 분기] 생성 시 체크했다면 보라색 가상 정산 단추 활성화
         const isTestMode = currentActiveSession.isTestMode === true;
         const testSimulateBtnHtml = (isTestMode && isSessionAdminMode)
             ? `<button data-index="${idx}" class="btn-simulate-score w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">🤖 AI 가상 결과 자동 정산</button>`
@@ -207,7 +206,7 @@ function buildLiveCourtsDisplay() {
                     <div class="col-span-3 text-xs font-extrabold text-slate-800 bg-white shadow-2xs p-2.5 rounded-xl border border-slate-200/60">${m.teamBNames.join(' • ')}</div>
                 </div>
                 <div class="space-y-1">
-                    <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">⚖️ 스코어 수동 입력</button>
+                    <button data-index="${idx}" class="btn-open-score w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs cursor-pointer">⚖️ 스코어 수동 입력</button>
                     ${testSimulateBtnHtml}
                 </div>
             </div>
@@ -218,13 +217,11 @@ function buildLiveCourtsDisplay() {
         btn.onclick = function() { openScoreModal(parseInt(this.getAttribute('data-index'))); };
     });
 
-    // ⚡ 가상 시뮬레이터 리스너 결합
     document.querySelectorAll('.btn-simulate-score').forEach(btn => {
         btn.onclick = function() { handleAiSimulationClick(parseInt(this.getAttribute('data-index'))); };
     });
 }
 
-// 🤖 [복원 핵심] AI 가상 결과 정산 연산 매커니즘 
 function handleAiSimulationClick(courtIdx) {
     if (!isSessionAdminMode || !currentActiveSession) return;
     const match = currentActiveSession.matches[courtIdx];
@@ -294,9 +291,6 @@ function processMmrMatchCalculation(courtIdx, scoreA, scoreB) {
     document.getElementById('scoreModal').style.display = 'none';
 }
 
-// ==========================================
-// 📊 실시간 화면 갱신 서브 파트
-// ==========================================
 function buildSessionLiveRankTable() {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || !currentActiveSession) return;
@@ -353,16 +347,39 @@ function buildAdminManageLists() {
     });
 }
 
+// 👤 [수정 및 연계] 내 이름 드롭다운 그리기 (로컬 스토리지 연동 브라우저 박제 기법 이식)
 function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
     if (!select || select.options.length > 1) return;
+    
     allSystemPlayers.forEach(p => {
-        const opt = document.createElement('option'); opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`; select.appendChild(opt);
+        const opt = document.createElement('option'); 
+        opt.value = p.name; 
+        opt.innerText = `${p.name} (${p.tier}조)`; 
+        select.appendChild(opt);
     });
+
+    // 💾 [핵심] 브라우저 디스크에 저장되어 있던 나의 고정 ID 파싱 호출
+    const savedName = localStorage.getItem("myClubFixedName");
+    if (savedName) {
+        clientSelectedMyName = savedName;
+        select.value = savedName; // 드롭다운 위치 강제 포커싱 고정
+    }
+
     select.onchange = function() {
         clientSelectedMyName = this.value;
+        
+        // 💾 드롭다운을 바꿀 때마다 로컬 스토리지 메모리에 영구 압착 저장!
+        if (clientSelectedMyName) {
+            localStorage.setItem("myClubFixedName", clientSelectedMyName);
+        } else {
+            localStorage.removeItem("myClubFixedName"); // 일반 관람 모드 시 클리어
+        }
+
         if (currentActiveSession && currentActiveSession.status === "진행중") {
-            buildLiveCourtsDisplay(); buildLiveWaitingQueueDisplay(); buildSessionLiveRankTable();
+            buildLiveCourtsDisplay(); 
+            buildLiveWaitingQueueDisplay(); 
+            buildSessionLiveRankTable();
         }
     };
 }
@@ -515,7 +532,7 @@ window.initDashboardPage = function() {
                             <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
                             <span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span>
                         </div>
-                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[테스트]' : ''}</p>
+                        <p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[시뮬레이션 모드]' : ''}</p>
                     </a>
                     ${deleteButtonHtml}
                 </div>
@@ -561,6 +578,7 @@ window.initDashboardPage = function() {
     const toggleBtn = document.getElementById('btnAdminToggle');
     if (toggleBtn) {
         toggleBtn.onclick = function() {
+            const wrapper = document.getElementById('testModeWrapper'); // 대문 보라색 체크박스 틀 ID 스캔
             if (!isAdminMode) {
                 const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
                 if (pw === MASTER_PASSWORD) {
@@ -568,12 +586,14 @@ window.initDashboardPage = function() {
                     this.innerText = "🔓 관리자 모드 해제";
                     this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1";
                     alert("🔓 관리자 인증 성공!");
+                    if (wrapper) wrapper.classList.remove('hidden'); // 🔥 [해결] 관리자 모드일 때만 보라색 체크박스 노출!!
                     if(window.initDashboardPage) window.initDashboardPage();
                 }
             } else {
                 isAdminMode = false;
                 this.innerText = "🔐 관리자 모드 인증";
                 this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1";
+                if (wrapper) wrapper.classList.add('hidden'); // 🔒 해제 시 다시 완벽하게 숨김!!
                 if(window.initDashboardPage) window.initDashboardPage();
             }
         };
@@ -635,7 +655,7 @@ window.initSessionPage = function() {
             allSystemPlayers.sort((a, b) => a.id - b.id);
         }
         buildAttendanceGrid();
-        buildIdentityDropdown(); 
+        buildIdentityDropdown(); // 🌟 내 이름 세팅 시 스토리지 복원 자동 실행
         if (currentActiveSession && currentActiveSession.status === "진행중") {
             buildSessionLiveRankTable();
             buildAdminManageLists(); 
