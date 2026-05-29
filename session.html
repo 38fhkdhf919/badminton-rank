@@ -13,14 +13,15 @@
         .hot-player-card { animation: fire-glow 1.5s infinite ease-in-out; background-color: #fffaf7 !important; border-width: 2px !important; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-24 md:pb-6">
 
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div class="text-center sm:text-left">
                 <div class="flex items-center justify-center sm:justify-start gap-2">
                     <a href="./index.html" class="text-xs font-bold text-indigo-600 hover:underline">🏠 대문으로</a>
-                    <span id="sessionStatusBadge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">스캐닝...</span>
+                    <span class="text-slate-300">|</span>
+                    <span id="sessionStatusBadge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100">로딩...</span>
                 </div>
                 <h1 id="sessionMainTitle" class="text-sm sm:text-base font-black text-slate-900 mt-0.5">정모 라이브 채널</h1>
                 <p id="sessionMetaText" class="text-[10px] font-mono text-slate-400">📅 연결 지연 확인 중...</p>
@@ -33,9 +34,11 @@
                         <option value="">-- 일반 관람 모드 --</option>
                     </select>
                 </div>
+                
                 <div>
                     <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1"></button>
                 </div>
+                
                 <div id="adminPanel" class="hidden gap-2">
                     <button id="btnToggleStatus" class="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer"></button>
                 </div>
@@ -43,9 +46,22 @@
         </div>
     </header>
 
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-xl z-50 flex md:hidden items-center justify-around py-3">
+        <button onclick="switchMobileTab('sec-courts', 'nav-tab-courts')" id="nav-tab-courts" class="flex flex-col items-center gap-0.5 text-indigo-600 font-black text-xs">
+            <span class="text-base">🏟️</span><span>라이브 대진</span>
+        </button>
+        <button onclick="switchMobileTab('sec-attendance', 'nav-tab-attendance')" id="nav-tab-attendance" class="flex flex-col items-center gap-0.5 text-slate-400 font-bold text-xs">
+            <span class="text-base">👥</span><span>출석/제외</span>
+        </button>
+        <button onclick="switchMobileTab('sec-stats', 'nav-tab-stats')" id="nav-tab-stats" class="flex flex-col items-center gap-0.5 text-slate-400 font-bold text-xs">
+            <span class="text-base">📊</span><span>기록/조회</span>
+        </button>
+    </nav>
+
     <main class="max-w-6xl mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-5">
         
-        <section class="md:col-span-4 space-y-4">
+        <section id="sec-attendance" class="md:col-span-4 space-y-4">
+            
             <div id="adminConfigBox" class="hidden bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl p-4 shadow-3xl flex-col gap-3">
                 <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">⚙️ 라이브 정모 환경 제어 (실시간 반영)</h3>
                 <div class="grid grid-cols-2 gap-2 text-xs">
@@ -66,21 +82,24 @@
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-4">
-                <div class="border-b border-slate-100 pb-2 flex justify-between items-center">
-                    <h2 id="attendanceBoxTitle" class="text-xs font-black text-slate-700 flex items-center gap-1">👥 오늘 정모 대기 인원</h2>
-                    <span id="attendeeCountLabel" class="text-[9px] font-mono font-black bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-indigo-700">0명 참여</span>
-                </div>
-                
                 <div id="adminOnlyAttendanceInputWrapper" class="space-y-1.5 text-xs relative hidden">
+                    <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
+                        <h2 class="text-xs font-black text-indigo-600 flex items-center gap-1">👥 회원 초고속 출석 검색대 (관리자전용)</h2>
+                    </div>
                     <label class="block text-[10px] font-black text-slate-500">⌨️ 이름 치고 Enter 누르면 즉시 출석/복귀</label>
                     <input type="text" id="inputKeyboardAttendance" placeholder="예: 유재석" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                    
                     <div id="duplicateSelectionBox" class="absolute left-0 right-0 top-14 bg-white border-2 border-indigo-400 rounded-xl p-2 shadow-xl z-50 space-y-1.5 hidden">
+                        <p class="text-[10px] font-black text-indigo-600">⚠️ 동명이인이 검색되었습니다. 대상을 터치하세요:</p>
                         <div id="duplicateListWrapper" class="flex flex-col gap-1"></div>
                     </div>
                 </div>
 
                 <div class="space-y-1.5">
-                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 p-1 border rounded-xl bg-slate-50/50 scrollbar-thin max-h-[180px] overflow-y-auto"></div>
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider"><span id="attendanceBoxTitle">👥 오늘 정모 대기 회원</span> (<span id="attendeeCountLabel" class="font-mono font-black text-indigo-600">0명</span> 참여)</h3>
+                    </div>
+                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
                 
                 <div class="border-t border-slate-100 pt-3">
@@ -92,6 +111,7 @@
             <div id="beforeStartStatsBox" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
                 <div class="border-b border-slate-100 pb-2">
                     <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">🏆 정모 참가자 MMR 랭킹 리스트 (시작 전)</h3>
+                    <p class="text-[9px] text-slate-400 mt-0.5">현재 출석 완료된 회원들이 MMR 점수가 높은 고수 순서대로 자동 정렬됩니다.</p>
                 </div>
                 <div class="overflow-y-auto max-h-[380px] divide-y divide-slate-100 text-[11px] font-medium scrollbar-thin" id="beforeStartPlayersList"></div>
             </div>
@@ -102,68 +122,95 @@
                 <h3 class="text-xs font-black text-rose-900 flex items-center gap-1">⚠️ 스코어 점수 결과 미입력 매치 홀딩 건</h3>
                 <div id="unsubmittedMatchesList" class="space-y-1.5"></div>
             </div>
+
             <div class="space-y-3">
-                <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider px-1">🏸 실시간 우선순위 대진 추천 현황</h2>
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">🏸 실시간 우선순위 대진 추천 현황</h2>
+                    <span class="bg-indigo-50 text-indigo-700 font-mono text-[9px] px-2 py-0.5 rounded-full font-black">실시간 자동 보정</span>
+                </div>
                 <div id="liveCourtsContainer" class="space-y-4"></div>
             </div>
         </section>
 
-        <section id="sec-stats" class="md:col-span-3 space-y-4">
+        <section id="sec-stats" class="md:col-span-4 space-y-4">
             <div id="liveStatsActiveWrapper" class="hidden flex-col gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
                     <h2 class="text-xs font-black text-slate-700 border-b border-slate-100 pb-2 mb-3">🔥 오늘의 실시간 성적표</h2>
-                    <div class="overflow-x-auto max-h-[260px] overflow-y-auto rounded-xl border border-slate-100 shadow-inner">
+                    <div class="overflow-x-auto max-h-[260px] overflow-y-auto rounded-xl border border-slate-100 scrollbar-thin">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black text-center">
+                                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black tracking-wide text-center">
                                     <th class="py-2 px-1">이름</th>
                                     <th class="py-2 px-1">전적</th>
                                     <th class="py-2 px-1">승률</th>
                                     <th class="py-2 px-1">MMR</th>
                                 </tr>
                             </thead>
-                            <tbody id="sessionLiveRankTableBody" class="text-xs text-center divide-y font-mono font-medium"></tbody>
+                            <tbody id="sessionLiveRankTableBody" class="text-xs text-center divide-y divide-slate-100 font-mono font-medium"></tbody>
                         </table>
                     </div>
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
                     <h2 class="text-xs font-black text-slate-700 mb-2">🔍 당일 개인 마감 전적 일지</h2>
-                    <input type="text" id="inputLocalSearchPlayer" placeholder="이름을 입력하면 즉시 필터링" class="w-full bg-slate-50 border rounded-xl px-3 py-1.5 text-xs outline-none font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
-                    <div id="localSearchResultContainer" class="space-y-2 max-h-[220px] overflow-y-auto mt-2"></div>
+                    <div class="flex gap-1.5 mb-2">
+                        <input type="text" id="inputLocalSearchPlayer" placeholder="이름을 입력하면 즉시 필터링" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs outline-none font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    </div>
+                    <div id="localSearchResultContainer" class="space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin"></div>
                 </div>
             </div>
         </section>
     </main>
 
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border space-y-4">
-            <div class="border-b pb-1 flex justify-between items-center">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
+            <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
                 <h3 class="text-sm font-black text-slate-900">🏆 매치 경기 결과 스코어 기록</h3>
                 <button id="btnCloseScoreModal" class="text-slate-400 font-bold text-sm">✕</button>
             </div>
+            
             <div class="space-y-4 text-xs">
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
-                    <p class="text-[10px] font-black text-slate-400 uppercase text-center border-b pb-1">🥇 승리 팀을 선택해 주세요</p>
-                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border cursor-pointer">
+                    <p class="text-[10px] font-black text-slate-400 uppercase text-center border-b border-slate-200 pb-1">🥇 승리 팀을 선택해 주세요</p>
+                    
+                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-indigo-50/50 transition-colors">
                         <div class="flex items-center gap-2">
-                            <input type="radio" name="winnerSelect" value="A" id="radioWinA" class="w-4 h-4 text-indigo-600">
+                            <input type="radio" name="winnerSelect" value="A" id="radioWinA" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
                             <div class="text-left"><span class="text-[9px] font-black text-indigo-500 block">TEAM A</span><span id="modalTeamANames" class="text-xs font-black text-slate-800"></span></div>
                         </div>
-                        <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border rounded-lg p-1 font-mono font-black text-sm outline-none">
+                        <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1 font-mono font-black text-sm outline-none">
                     </label>
-                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border cursor-pointer">
+
+                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-emerald-50/50 transition-colors">
                         <div class="flex items-center gap-2">
-                            <input type="radio" name="winnerSelect" value="B" id="radioWinB" class="w-4 h-4 text-emerald-600">
+                            <input type="radio" name="winnerSelect" value="B" id="radioWinB" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
                             <div class="text-left"><span class="text-[9px] font-black text-emerald-500 block">TEAM B</span><span id="modalTeamBNames" class="text-xs font-black text-slate-800"></span></div>
                         </div>
-                        <input type="number" id="inputScoreB" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border rounded-lg p-1 font-mono font-black text-sm outline-none">
+                        <input type="number" id="inputScoreB" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1 font-mono font-black text-sm outline-none">
                     </label>
                 </div>
             </div>
-            <button id="btnSubmitMatchScore" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl transition shadow-md cursor-pointer">💾 최종 경기 결과 확정 및 정산</button>
+            
+            <button id="btnSubmitMatchScore" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs py-3 rounded-xl transition shadow-md cursor-pointer">💾 최종 경기 결과 확정 및 정산</button>
         </div>
     </div>
 
+    <script type="module" src="./app.js"></script>
+    <script>
+        function switchMobileTab(targetSectionId, activeTabButtonId) {
+            if(window.innerWidth >= 768) return;
+            const sections = ['sec-courts', 'sec-attendance', 'sec-stats'];
+            sections.forEach(id => { const dom = document.getElementById(id); if(dom) dom.style.display = 'none'; });
+            const activeSection = document.getElementById(targetSectionId);
+            if(activeSection) { activeSection.style.display = 'block'; activeSection.classList.remove('hidden'); }
+
+            const tabButtons = ['nav-tab-courts', 'nav-tab-attendance', 'nav-tab-stats'];
+            tabButtons.forEach(btnId => {
+                const btn = document.getElementById(btnId); if(!btn) return;
+                if(btnId === activeTabButtonId) { btn.classList.remove('text-slate-400', 'font-bold'); btn.classList.add('text-indigo-600', 'font-black'); } 
+                else { btn.classList.remove('text-indigo-600', 'font-black'); btn.classList.add('text-slate-400', 'font-bold'); }
+            });
+        }
+    </script>
 </body>
 </html>
