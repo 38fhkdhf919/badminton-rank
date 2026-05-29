@@ -8,8 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @keyframes border-glow {
-            0%, 100% { border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
-            50% { border-color: #f97316; box-shadow: 0 0 20px rgba(249, 115, 22, 0.8); }
+            0%, 100% { border-color: #4f46e5; box-shadow: 0 0 12px rgba(79, 70, 229, 0.4); }
+            50% { border-color: #818cf8; box-shadow: 0 0 20px rgba(129, 140, 248, 0.7); }
         }
         .fire-rank-card { animation: border-glow 2s infinite ease-in-out; }
     </style>
@@ -23,7 +23,9 @@
                 <p class="text-xs text-indigo-200 mt-1 font-medium">우리 클럽의 모든 실시간 정모 매칭과 누적 명예의 전당 아카이브</p>
             </div>
             <div>
-                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5"></button>
+                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                    🔐 마스터 관리자 인증
+                </button>
             </div>
         </div>
     </header>
@@ -63,7 +65,9 @@
                     <h2 class="text-xs font-black tracking-wider text-slate-400 uppercase">📅 정모 대시보드 링크</h2>
                     <span id="sessionCountBadge" class="bg-slate-200 text-slate-700 font-mono font-bold text-[10px] px-2 py-0.5 rounded-full">0개 방</span>
                 </div>
-                <div id="sessionListContainer" class="space-y-3"></div>
+                <div id="sessionListContainer" class="space-y-3">
+                    <div class="text-center py-12 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">서버에서 클럽 정모 로그를 스캔 중...</div>
+                </div>
             </div>
         </section>
 
@@ -100,7 +104,9 @@
                                 <th class="py-2.5 px-4 text-right w-24">통합 MMR</th>
                             </tr>
                         </thead>
-                        <tbody id="globalRankTableBody" class="text-xs text-slate-700 divide-y divide-slate-100 font-sans"></tbody>
+                        <tbody id="globalRankTableBody" class="text-xs text-slate-700 divide-y divide-slate-100 font-sans">
+                            <tr><td colspan="6" class="py-8 text-center text-slate-400">명단을 실시간 빌드 중...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -120,12 +126,5 @@
     </div>
 
     <script type="module" src="./app.js"></script>
-    <script>
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                if (typeof window.initDashboardPage === 'function') { window.initDashboardPage(); }
-            }, 300);
-        });
-    </script>
 </body>
 </html>
