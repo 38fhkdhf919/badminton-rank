@@ -22,17 +22,19 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 파이어베이스 /players 실시간 동기화
+// 📡 파이어베이스 /players 실시간 글로벌 리동기화 캐시
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
         window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
         window.allSystemPlayers.sort((a, b) => a.id - b.id);
         
-        if (document.getElementById('globalRankTableBody')) {
+        // 데이터 정합성이 확보된 순간 현재 브라우저의 마크업 컨텍스트를 판독하여 동기화 유기적 실행
+        if (document.getElementById('globalRankTableBody') && window.currentActiveSession === null) {
             const sessionsRef = ref(db, 'sessions');
             onValue(sessionsRef, (snap) => { if(snap.val()) calculateGlobalLeaderboard(snap.val()); }, { onlyOnce: true });
         } else if (window.currentActiveSession) {
+            buildIdentityDropdown();
             renderAttendanceBox(window.currentActiveSession);
             renderSessionRankTable(window.currentActiveSession);
         }
@@ -49,7 +51,7 @@ function getNamesFromIds(ids, fallbackNames) {
 }
 
 // ==========================================
-// 🏢 대문 통합 제어 모듈
+// 🏢 대문 통합 제어 연산 모듈
 // ==========================================
 window.initDashboardPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
@@ -104,12 +106,12 @@ window.initDashboardPage = function() {
 
             return `
                 <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-3xs hover:border-indigo-400 transition-all">
-                    <a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1">
+                    <a href="./session.html?id=${id}" class="block flex-1 space-y-1">
                         <div class="flex items-center gap-2">
                             <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
                             <span class="text-[9px] font-black px-1.5 py-0.5 rounded border ${badgeStyle}">${s.status}</span>
                         </div>
-                        <p class="text-[11px] text-slate-400 font-mono">📅 정모일: ${displayDate} • 🎯 ${displayScore} • 참여: ${s.attendees ? s.attendees.length : 0}명 ${s.isTestMode ? '🤖[AI]' : ''}</p>
+                        <p class="text-[11px] text-slate-400 font-mono">📅 정모일: ${displayDate} • 🎯 ${displayScore} • 참여: ${s.attendees ? s.attendees.length : 0}명</p>
                     </a>
                     ${delBtn}
                 </div>
@@ -230,10 +232,6 @@ function calculateGlobalLeaderboard(allSessions) {
 // 🏟️ 특정 정모 세션 제어 라이브 채널
 // ==========================================
 window.initSessionPage = function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    window.currentSessionKey = urlParams.get('id');
-    if (!window.currentSessionKey) return;
-
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         if (isAdminMode) {
@@ -273,25 +271,6 @@ window.initSessionPage = function() {
             if(s.status === "진행중") statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse";
             else if(s.status === "종료") statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200";
             else statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200";
-        }
-
-        const adminPanel = document.getElementById('adminPanel');
-        const btnToggleStatus = document.getElementById('btnToggleStatus');
-        if (isAdminMode && adminPanel && btnToggleStatus) {
-            adminPanel.classList.remove('hidden');
-            adminPanel.classList.add('flex');
-            btnToggleStatus.innerText = s.status === "예정" ? "▶️ 정모 매칭 가동 시작" : (s.status === "진행중" ? "🛑 오늘 정모 최종 마감/종료" : "🔒 정모 폐쇄됨");
-            btnToggleStatus.disabled = s.status === "종료";
-            
-            btnToggleStatus.onclick = function() {
-                if (s.status === "예정") {
-                    update(sessionRef, { status: "진행중" }).then(() => recalculateLiveQueueMatch());
-                } else if (s.status === "진행중") {
-                    if (confirm("오늘 정모를 최종 마감하시겠습니까? 종료 후에는 매칭 알고리즘이 정지하며 아카이브로 보관됩니다.")) {
-                        update(sessionRef, { status: "종료" });
-                    }
-                }
-            };
         }
 
         const keyboardInputWrapper = document.getElementById('adminOnlyAttendanceInputWrapper');
@@ -334,20 +313,7 @@ window.initSessionPage = function() {
         }
     });
 
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-            window.allSystemPlayers.sort((a, b) => a.id - b.id);
-            buildIdentityDropdown();
-            if(window.currentActiveSession) {
-                renderAttendanceBox(window.currentActiveSession);
-                renderSessionRankTable(window.currentActiveSession);
-            }
-        }
-    });
-
+    // 🎯 수동 결과 기입 전용 하이잭 리스너 바인딩
     setTimeout(() => {
         const radioA = document.getElementById('radioWinA'); const radioB = document.getElementById('radioWinB');
         if(radioA && radioB) {
@@ -359,7 +325,7 @@ window.initSessionPage = function() {
 
 function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
-    if (!select || select.options.length > 1) return;
+    if (!select || select.options.length > 1 || window.allSystemPlayers.length === 0) return;
     window.allSystemPlayers.forEach(p => {
         const opt = document.createElement('option'); opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`; select.appendChild(opt);
     });
@@ -489,7 +455,7 @@ function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
-    const isTestMode = s.isTestMode === true; // 🔥 AI 테스트 모드 판정 스위치 확보
+    const isTestMode = s.isTestMode === true;
 
     if (s.status === "예정") {
         liveContainer.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">대기중 채널입니다. 관리자가 정모 매칭 가동 시작 버튼을 누르면 추천 대진표 레이어가 개방됩니다.</div>`;
@@ -541,7 +507,7 @@ function renderLiveCourtsGrid(s) {
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">🛑 경기 종료</button>` 
             : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">▶️ 경기시작</button>`;
 
-        // 🎯 [요구 2 해결] AI 시뮬레이션 버튼 가로 바인딩 복원 (진행 중 상태이면서 AI 설정방일 경우 우측 정산단추 노출)
+        // 🤖 [버그 수정 완료] AI 즉시정산 단추 렌더링 분기 복원 완료
         const aiSimulateBtn = (isLive && isTestMode && isAdminMode)
             ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-[10px] px-2 py-1.5 rounded-xl ml-2 shadow-xs cursor-pointer">🤖 AI 즉시정산</button>`
             : '';
@@ -572,148 +538,97 @@ function renderLiveCourtsGrid(s) {
             } else { alert("🔒 경기를 가동할 권한이 없습니다! (본인 경기가 아니거나 관리자만 트리거 가능)"); }
         };
     });
-    
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(this.getAttribute('data-id')); };
     });
-
-    // 🤖 [요구 2 해결] AI 즉시정산 클릭 리스너 유기적 어태치먼트
     document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
-        btn.onclick = function() {
-            const mId = this.getAttribute('data-id');
-            handleAiSimulatedMatchCalculation(mId);
-        };
+        btn.onclick = function() { handleAiSimulatedMatchCalculation(this.getAttribute('data-id')); };
     });
 }
 
-// 🤖 AI 시뮬레이터 자동 스코어 정산 기어 박스
 function handleAiSimulatedMatchCalculation(mId) {
-    const s = window.currentActiveSession;
-    if(!s || !isAdminMode) return;
-    const currentMatches = s.currentMatches || [];
-    const match = currentMatches.find(x => x.id === mId);
-    if(!match) return;
+    const s = window.currentActiveSession; if(!s || !isAdminMode) return;
+    const currentMatches = s.currentMatches || []; const match = currentMatches.find(x => x.id === mId); if(!match) return;
 
-    // 실시간 MMR 기반 실력 비례 난수 점수 가중치 공식 가동
     let sumA = 0; let sumB = 0;
     match.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
     match.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
 
-    let scoreA, scoreB;
-    const maxScore = s.targetScore || 25; // 개설된 방의 맥시멈 스코어
-    const randomFactor = Math.random();
-
+    let scoreA, scoreB; const maxScore = s.targetScore || 25; const randomFactor = Math.random();
     if ((sumA >= sumB && randomFactor > 0.15) || (sumB > sumA && randomFactor <= 0.15)) {
-        scoreA = maxScore;
-        scoreB = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8));
+        scoreA = maxScore; scoreB = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8));
     } else {
-        scoreB = maxScore;
-        scoreA = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8));
+        scoreB = maxScore; scoreA = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8));
     }
 
-    // 파이어베이스 트랜잭션 주입용 변수 가로채기
     let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
     match.scoreA = scoreA; match.scoreB = scoreB; match.status = "완료";
-
     historyLog.push({ ...match, timestamp: Date.now() });
     const nextMatches = currentMatches.filter(x => x.id !== mId);
 
-    const winTeamA = scoreA > scoreB;
-    const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
-    const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400));
-    const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
+    const winTeamA = scoreA > scoreB; const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
+    const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400)); const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
     const deltaA = Math.round(32 * (rA - expA)); const deltaB = Math.round(32 * (rB - expB));
     
     [...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
     match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
     match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
 
-    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: nextMatches, historyLog, statsLog }).then(() => {
-        recalculateLiveQueueMatch();
-    });
+    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: nextMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
 }
 
 // ==========================================
-// 🛠️ [요구 1 해결] 대기열 중복 분신술 버그 철통 차단 재매칭 알고리즘
+// 🛠️ [중복 방어 완벽 해결] 연쇄 실시간 격리 큐 대진 배정 엔진
 // ==========================================
 function recalculateLiveQueueMatch() {
     const s = window.currentActiveSession; if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
 
-    let currentMatches = s.currentMatches || [];
-    const attendees = s.attendees || [];
-    const restList = s.restPlayers || [];
-    const historyLog = s.historyLog || [];
+    let currentMatches = s.currentMatches || []; const attendees = s.attendees || []; const restList = s.restPlayers || []; const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
-    // 🚨 [동결 창고] 제외 유저(쉼터 유저) 원천 락 격리
-    let busyIds = new Set();
-    restList.forEach(id => busyIds.add(id));
+    // 🚨 [중복 차단 핵심] busyIds에 휴식자 및 진행중인 유저들을 1차 하드 락
+    let busyIds = new Set(); restList.forEach(id => busyIds.add(id));
+    currentMatches.forEach(m => { if (m.status === "진행중" || m.status === "완료") { m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); } });
 
-    // 진행중이거나 이미 완료 정산된 카드의 유저들은 대기열 연산 대상에서 우선 고정 격리
-    currentMatches.forEach(m => {
-        if (m.status === "진행중" || m.status === "완료") {
-            m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id));
-        }
-    });
-
-    let playCounts = {};
-    attendees.forEach(id => playCounts[id] = 0);
+    let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
 
-    // 1단계: 기존 추천 대진 카드 필터링 보정 (여기서도 쉼터 낙오자 핀포인트 교체)
+    // 1단계: 기존 대기 대진의 핀포인트 제외 처리 보정
     currentMatches = currentMatches.map(m => {
         if (m.status !== "대기") return m;
-
         const filterValidIds = (teamIds) => {
             let nextTeam = [];
             teamIds.forEach(id => { if (!restList.includes(id) && attendees.includes(id)) { nextTeam.push(id); } });
             return nextTeam;
         };
-
         let cleanA = filterValidIds(m.teamA); let cleanB = filterValidIds(m.teamB);
         if (cleanA.length < 2 || cleanB.length < 2) {
             let currentComboIds = new Set([...cleanA, ...cleanB]);
-            // 🚨 [핵심 가드]: 이미 다른 코트에 배정받아 바쁜 사람(busyIds) 역시 실시간 필터 스캔으로 우회 배제!
-            let freeQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id) && !currentComboIds.has(id))
-                                      .sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
+            let freeQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id) && !currentComboIds.has(id)).sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
             while (cleanA.length < 2 && freeQueue.length > 0) { cleanA.push(freeQueue.shift()); }
             while (cleanB.length < 2 && freeQueue.length > 0) { cleanB.push(freeQueue.shift()); }
         }
         return { ...m, teamA: cleanA, teamB: cleanB, teamANames: getNamesFromIds(cleanA), teamBNames: getNamesFromIds(cleanB) };
     });
 
-    // 2단계: 신규 추천 대진 큐 형성 루프 (🔥 버그 저격: 루프가 돌 때마다 새로 배정된 유저를 즉시 busyIds에 넣는 기믹)
+    // 2단계: 신규 추천대진 증설 큐 연사 (🔥 버그 제어 기믹: 매 순위 연산 루프 직후 busyIds 강제 스태킹)
     let finalMatches = [];
-    
-    // 진행중이거나 방금 보정 완료된 상위 매치 카드를 먼저 안착
     currentMatches.forEach(m => {
         finalMatches.push(m);
-        // 🚨 [분신술 가드 핵심]: 대기 상태든 진행 상태든 카드가 정해지면 그 안의 선수 4명은 즉시 바쁜 사람(busyIds)으로 등 등재!!
-        m.teamA.forEach(id => busyIds.add(id));
-        m.teamB.forEach(id => busyIds.add(id));
+        m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id));
     });
 
     const extraSlots = maxCourts - finalMatches.length;
     for (let i = 0; i < extraSlots; i++) {
-        // 루프 매 회차마다 busyIds에 업데이트된 최신 현황을 기반으로 순수 대기열 풀을 매번 새로 필터링!!
-        let freshQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id))
-                                  .sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
-
+        let freshQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id)).sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
         if (freshQueue.length >= 4) {
             const p1 = freshQueue.shift(); const p2 = freshQueue.shift(); const p3 = freshQueue.shift(); const p4 = freshQueue.shift();
-            
-            const newMatchObj = {
-                id: `m_${Date.now()}_slot_${i}_r`, status: "대기",
-                teamA: [p1, p2], teamB: [p3, p4],
-                teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
-            };
-            
-            finalMatches.push(newMatchObj);
-            // 🚨 [연쇄 락 기어]: 방금 추가된 4명도 그 즉시 busyIds에 등록하여 다음 순위 루프에서 절대로 뽑히지 않도록 영구 격리!!
-            busyIds.add(p1); busyIds.add(p2); busyIds.add(p3); busyIds.add(p4);
+            finalMatches.push({
+                id: `m_${Date.now()}_slot_${i}_r`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
+            });
+            busyIds.add(p1); busyIds.add(p2); busyIds.add(p3); busyIds.add(p4); // 🚨 연속 선점 차단 락!!
         }
     }
-
     update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
 }
 
@@ -750,8 +665,7 @@ function openScoreModal(mId) {
 if(document.getElementById('btnSubmitMatchScore')) {
     document.getElementById('btnSubmitMatchScore').onclick = function() {
         const selectedWinner = document.querySelector('input[name="winnerSelect"]:checked')?.value;
-        if(!selectedWinner) { alert("🥇 승리 팀 라디오 버튼을 마킹해 주세요!"); return; }
-
+        if(!selectedWinner) { alert("🏆 승리 팀 라디오 버튼을 마킹해 주세요!"); return; }
         const sA = parseInt(document.getElementById('inputScoreA').value); const sB = parseInt(document.getElementById('inputScoreB').value);
         if (isNaN(sA) || isNaN(sB)) { alert("점수를 기입하세요!"); return; }
         if (sA === sB) { alert("무승부 불가!"); return; }
@@ -827,5 +741,21 @@ function executeGlobalRecordSearch() {
     }, { onlyOnce: true });
 }
 
-if (document.getElementById('globalRankTableBody')) { window.initDashboardPage(); } 
-if (document.getElementById('selectMyIdentity')) { window.initSessionPage(); }
+// ==========================================
+// 📡 [대혁신] DOM 생성이 100% 끝났음을 보장하는 타이밍 디텐션 시동 서포터
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionUrlId = urlParams.get('id');
+
+    if (sessionUrlId) {
+        // 주소창에 ?id=가 있으면 확실하게 세션 컨트롤러를 가동
+        window.currentSessionKey = sessionUrlId;
+        window.initSessionPage();
+        console.log("🏟️ [시동 엔진] 세션 라이브 정모 채널 관제탑 정상 로드 완료!");
+    } else if (document.getElementById('globalRankTableBody')) {
+        // 주소창이 깨끗하고 대문 테이블이 식별되면 대문 대시보드를 가동
+        window.initDashboardPage();
+        console.log("🏠 [시동 엔진] 대문 메인 대시보드 스코어보드 채널 로드 완료!");
+    }
+});
