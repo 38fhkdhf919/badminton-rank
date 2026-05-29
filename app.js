@@ -21,21 +21,22 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 /players 실시간 동기화
+// 📡 파이어베이스 /players 원격 창고 동기화
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
         window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
         window.allSystemPlayers.sort((a, b) => a.id - b.id);
         
-        // 동기화 상태에 따른 명단 렌더링 스위칭 유도
         if (document.getElementById('globalRankTableBody') && window.currentSessionKey === null) {
             const sessionsRef = ref(db, 'sessions');
             onValue(sessionsRef, (snap) => { if(snap.val()) calculateGlobalLeaderboard(snap.val()); }, { onlyOnce: true });
-        } else if (window.currentSessionKey && window.currentActiveSession) {
+        } else if (window.currentSessionKey) {
             buildIdentityDropdown();
-            renderAttendanceBox(window.currentActiveSession);
-            renderSessionRankTable(window.currentActiveSession);
+            if(window.currentActiveSession) {
+                renderAttendanceBox(window.currentActiveSession);
+                renderSessionRankTable(window.currentActiveSession);
+            }
         }
     }
 });
@@ -50,13 +51,13 @@ function getNamesFromIds(ids, fallbackNames) {
 }
 
 // ==========================================
-// 🏢 대문 통합 제어 연산 모듈
+// 🏢 대문 메인 대시보드 통제실
 // ==========================================
 window.initDashboardPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         btnToggle.innerText = isAdminMode ? "🔓 관리자 모드 인증 해제" : "🔐 마스터 관리자 인증";
-        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer";
+        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5" : "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5";
 
         btnToggle.onclick = function() {
             if (!isAdminMode) {
@@ -86,7 +87,7 @@ window.initDashboardPage = function() {
             container.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">개설된 정모 세션이 전혀 없습니다.</div>`;
             if (badgeCount) badgeCount.innerText = "0개 방";
             const tbody = document.getElementById('globalRankTableBody');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">정모 데이터 공백 상태</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">개설된 정모 세션이 전혀 없습니다.</td></tr>`;
             return;
         }
 
@@ -200,13 +201,13 @@ function calculateGlobalLeaderboard(allSessions) {
 }
 
 // ==========================================
-// 🏟️ 실시간 라이브 정모 전광판 제어실 코어
+// 🏟️ 특정 정모 세션 제어 라이브 채널 코어
 // ==========================================
 window.initSessionPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         btnToggle.innerText = isAdminMode ? "🔓 관리자 인증 해제" : "🔐 마스터 관리자 인증";
-        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm";
+        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1" : "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1";
 
         btnToggle.onclick = function() {
             if (!isAdminMode) {
@@ -313,7 +314,16 @@ if(document.getElementById('inputKeyboardAttendance')) {
             e.preventDefault(); const query = this.value.trim(); if(!query) return;
             const matched = window.allSystemPlayers.filter(x => x.name === query);
             if(matched.length === 0) { alert("❌ 명단 오류"); return; }
-            commitAttendanceAction(matched[0].id); this.value = "";
+            
+            if(matched.length > 1) {
+                // 🎯 동명이인 나이 분기 선택 레이어 복원
+                const box = document.getElementById('duplicateSelectionBox'); const listWrapper = document.getElementById('duplicateListWrapper');
+                box.classList.remove('hidden');
+                listWrapper.innerHTML = matched.map(p => `<button data-id="${p.id}" class="btn-resolve-dup text-left w-full bg-slate-50 hover:bg-indigo-50 border p-1.5 font-bold rounded-lg text-[11px] text-slate-800">${p.name} (ID:${p.id} / ${p.tier}조)</button>`).join('');
+                document.querySelectorAll('.btn-resolve-dup').forEach(btn => {
+                    btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); box.classList.add('hidden'); document.getElementById('inputKeyboardAttendance').value = ""; };
+                });
+            } else { commitAttendanceAction(matched[0].id); this.value = ""; }
         }
     };
 }
@@ -407,12 +417,17 @@ function renderLiveCourtsGrid(s) {
         liveContainer.innerHTML = [...historyLog].reverse().map((m, idx) => {
             const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', '); const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
             const winA = m.scoreA > m.scoreB;
+            
+            // 🎯 완료 아카이브 뷰어 내 팀 스코어 컬러 링 테두리 교정 복원
+            const borderA = winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
+            const borderB = !winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
+
             return `
-                <div class="bg-white border border-slate-200 p-3 rounded-xl text-xs space-y-1">
-                    <div class="text-[10px] font-mono text-slate-400">제 ${historyLog.length - idx}경기 최종 스코어</div>
-                    <div class="grid grid-cols-2 gap-2 text-center">
-                        <div class="p-1.5 rounded border ${winA ? 'border-emerald-400 bg-emerald-50/10 shadow-sm':'border-rose-200 bg-rose-50/10'} font-bold flex justify-between"><span>${aNames}</span><span>${m.scoreA}</span></div>
-                        <div class="p-1.5 rounded border ${!winA ? 'border-emerald-400 bg-emerald-50/10 shadow-sm':'border-rose-200 bg-rose-50/10'} font-bold flex justify-between"><span>${m.scoreB}</span><span>${bNames}</span></div>
+                <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-3xs space-y-2.5">
+                    <div class="text-[10px] font-mono text-slate-400">🏁 제 ${historyLog.length - idx}경기 최종 스코어</div>
+                    <div class="grid grid-cols-2 gap-3 text-center text-xs">
+                        <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderA}"><span>${aNames}</span> <span class="font-mono font-black">${m.scoreA}</span></div>
+                        <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderB}"><span class="font-mono font-black">${m.scoreB}</span> <span>${bNames}</span></div>
                     </div>
                 </div>`;
         }).join('');
@@ -426,12 +441,12 @@ function renderLiveCourtsGrid(s) {
         const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
         const aNamesStr = aNames.join(', '); const bNamesStr = bNames.join(', ');
         
-        // 🎯 [요구 2 복원 확인] 내 경기 노란색 특수 하이라이팅 가드 매핑
+        // 🎯 내 경기 감지 로직 복원
         const isMyMatch = aNames.concat(bNames).includes(myFixedName) && myFixedName !== "";
         const isLive = m.status === "진행중";
         
-        let cardBg = isLive ? "border-indigo-400 bg-indigo-50/20" : "border-slate-200 bg-white";
-        if(isMyMatch) cardBg = "border-amber-400 bg-amber-50/60 ring-4 ring-amber-400/10 scale-[1.01] shadow-md";
+        let cardBg = isLive ? "border-indigo-400 bg-indigo-50/40 shadow-md" : "border-slate-200 bg-white";
+        if(isMyMatch) cardBg = "border-2 border-amber-400 bg-amber-50/60 ring-4 ring-amber-400/10 scale-[1.01] shadow-md";
 
         const ctrlBtn = isLive 
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
@@ -458,7 +473,6 @@ function renderLiveCourtsGrid(s) {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
-            // 🎯 [요구 3 복원 확인] 관리자 혹은 당사자 4명 중 한 명이면 경기 가동 가능
             if(isAdminMode || names.includes(myFixedName)) {
                 target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 당사자 본인이 아니거나 마스터 관리자가 아닙니다."); }
@@ -493,11 +507,9 @@ function handleAiSimulatedMatchCalculation(mId) {
     match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
     match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
 
-    // 🎯 [요구 5 복원 확인] AI 정산 완료 터치 즉시 새로운 연쇄 매칭 연산 동시 스태킹 호출
     update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: nextMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
 }
 
-// 🎯 [요구 1 복원 확인] 4인 선점식 연속 busyIds 강제 추가 기어 내장형 중복 제거 매칭 알고리즘
 function recalculateLiveQueueMatch() {
     const s = window.currentActiveSession; if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
     let currentMatches = s.currentMatches || []; const attendees = s.attendees || []; const restList = s.restPlayers || []; const historyLog = s.historyLog || [];
@@ -509,7 +521,7 @@ function recalculateLiveQueueMatch() {
     let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
 
-    // 🎯 [요구 2 복원 확인] 대기열 수정 터치 시 대진표 엎어짐 방지용 핀포인트 1인 보정 스와퍼
+    // 🎯 대기열 핀포인트 대체 스와핑 로직 복원
     currentMatches = currentMatches.map(m => {
         if (m.status !== "대기") return m;
         let cleanA = m.teamA.filter(id => !restList.includes(id) && attendees.includes(id));
@@ -534,7 +546,7 @@ function recalculateLiveQueueMatch() {
             finalMatches.push({
                 id: `m_${Date.now()}_slot_${i}`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
             });
-            // 분신술 원천 분쇄 가드
+            // 🎯 분신술 원천 격리 락 작동
             busyIds.add(p1); busyIds.add(p2); busyIds.add(p3); busyIds.add(p4);
         }
     }
@@ -553,7 +565,9 @@ function renderSessionRankTable(s) {
     });
 
     let list = Object.entries(map).map(([id, val]) => ({ id: parseInt(id), ...val })).sort((a, b) => b.win - a.win || b.scoreDiff - a.scoreDiff);
-    tbody.innerHTML = list.map((p, idx) => `<tr class="${idx===0&&p.win>0?'hot-player-card text-red-500 font-bold':''}"><td class="py-2 font-bold">${p.name}</td><td>${p.win}승${p.lose}패</td><td class="text-indigo-600 font-bold">${p.win+p.lose>0?Math.round(p.win/(p.win+p.lose)*100):0}%</td><td>${p.scoreDiff>0?'+'+p.scoreDiff:p.scoreDiff}</td></tr>`).join('');
+    
+    // 🎯 고수 이글이글 불꽃 애니메이션 마킹 복원
+    tbody.innerHTML = list.map((p, idx) => `<tr class="${idx===0&&p.win>0?'hot-player-card text-red-500 font-bold':''}"><td class="py-2 font-bold">${p.name}${idx===0&&p.win>0?' 🔥':''}</td><td>${p.win}승${p.lose}패</td><td class="text-indigo-600 font-bold">${p.win+p.lose>0?Math.round(p.win/(p.win+p.lose)*100):0}%</td><td>${p.scoreDiff>0?'+'+p.scoreDiff:p.scoreDiff}</td></tr>`).join('');
 }
 
 let scoreModalTargetMatchId = null;
@@ -600,13 +614,16 @@ function executeLocalRecordSearch(queryName) {
     const historyLog = window.currentActiveSession ? (window.currentActiveSession.historyLog || []) : [];
     const filtered = historyLog.filter(m => getNamesFromIds(m.teamA, m.teamANames).includes(query) || getNamesFromIds(m.teamB, m.teamBNames).includes(query)).reverse();
     
+    // 🎯 개인 전적 일지 내 승패 초록색/적색 링 가드 복원
     container.innerHTML = filtered.map(m => {
         const winA = m.scoreA > m.scoreB;
+        const borderA = winA ? "border border-emerald-400 bg-emerald-50/10" : "border border-rose-200 bg-rose-50/10";
+        const borderB = !winA ? "border border-emerald-400 bg-emerald-50/10" : "border border-rose-200 bg-rose-50/10";
         return `
-            <div class="bg-white border rounded-xl p-2 text-[11px] space-y-1">
-                <div class="grid grid-cols-2 gap-1 text-center font-bold">
-                    <div class="p-1 rounded ${winA?'border border-emerald-400 bg-emerald-50/10':''}">${getNamesFromIds(m.teamA, m.teamANames).join(',')}(${m.scoreA})</div>
-                    <div class="p-1 rounded ${!winA?'border border-emerald-400 bg-emerald-50/10':''}">${m.scoreB}(${getNamesFromIds(m.teamB, m.teamBNames).join(',')})</div>
+            <div class="bg-white border rounded-xl p-2.5 space-y-1 text-[11px]">
+                <div class="grid grid-cols-2 gap-2 text-center font-bold text-slate-700">
+                    <div class="p-1.5 rounded-lg flex justify-between ${borderA}"><span>${getNamesFromIds(m.teamA, m.teamANames).join(',')}</span> <span>${m.scoreA}</span></div>
+                    <div class="p-1.5 rounded-lg flex justify-between ${borderB}"><span>${m.scoreB}</span> <span>${getNamesFromIds(m.teamB, m.teamBNames).join(',')}</span></div>
                 </div>
             </div>`;
     }).join('');
@@ -630,9 +647,6 @@ function executeGlobalRecordSearch() {
     }, { onlyOnce: true });
 }
 
-// ==========================================
-// 🚀 하이브리드 즉시 구동 브리지 트리거 엔진
-// ==========================================
 function bootAppEngine() {
     const urlParams = new URLSearchParams(window.location.search);
     const sessionUrlId = urlParams.get('id');
@@ -640,15 +654,12 @@ function bootAppEngine() {
     if (sessionUrlId) {
         window.currentSessionKey = sessionUrlId;
         window.initSessionPage();
-        console.log("🏟️ 세션방 엔진 정상 시동 성공");
+        console.log("🏟️ 세션 관제탑 시동 완료");
     } else if (document.getElementById('globalRankTableBody')) {
         window.initDashboardPage();
-        console.log("🏠 대문 대시보드 엔진 시동 성공");
+        console.log("🏠 메인 대문 시동 완료");
     }
 }
 
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bootAppEngine);
-} else {
-    bootAppEngine();
-}
+if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", bootAppEngine); } 
+else { bootAppEngine(); }
