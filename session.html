@@ -29,6 +29,7 @@
             </div>
             
             <div class="flex items-center gap-2 flex-wrap justify-center">
+                <!-- 👤 상단 내 이름 드롭다운 고정석 -->
                 <div class="bg-slate-100 px-3 py-1 rounded-xl border border-slate-200 flex items-center gap-1 text-xs font-bold">
                     <span class="text-slate-500">👤 내 이름 설정:</span>
                     <select id="selectMyIdentity" class="bg-white border border-slate-300 text-slate-800 rounded-lg px-1.5 py-0.5 font-black outline-none">
@@ -36,9 +37,14 @@
                     </select>
                 </div>
                 
-                <!-- 👑 [버그 수정] 인지력 강화를 위해 보정된 관리자 전용 제어 단추 상단바 배치 -->
+                <!-- 👑 [요구 1 복원] 관리자 인증 유무를 수시로 풀고 잠글 수 있는 스위치 배치 -->
+                <div>
+                    <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1"></button>
+                </div>
+                
+                <!-- 관리자 전용 정모 매칭 마감용 서브 패널 -->
                 <div id="adminPanel" class="hidden gap-2">
-                    <button id="btnToggleStatus" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"></button>
+                    <button id="btnToggleStatus" class="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer"></button>
                 </div>
             </div>
         </div>
@@ -57,7 +63,6 @@
         </button>
     </nav>
 
-    <!-- 메인 레이아웃 반응형 그리드 -->
     <main class="max-w-6xl mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-5">
         
         <!-- ========================================== -->
@@ -65,7 +70,6 @@
         <!-- ========================================== -->
         <section id="sec-attendance" class="md:col-span-4 space-y-4">
             
-            <!-- 환경 제어 박스 -->
             <div id="adminConfigBox" class="hidden bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl p-4 shadow-3xl flex-col gap-3">
                 <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">⚙️ 라이브 정모 환경 제어 (실시간 반영)</h3>
                 <div class="grid grid-cols-2 gap-2 text-xs">
@@ -85,14 +89,12 @@
                 </div>
             </div>
 
-            <!-- 타자식 출석부 -->
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-4">
-                <div class="border-b border-slate-100 pb-2 flex justify-between items-center">
-                    <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">👥 회원 초고속 출석 검색대</h2>
-                    <span id="attendeeCountLabel" class="text-[9px] font-mono font-black bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-indigo-700">0명 참여</span>
-                </div>
-                
-                <div class="space-y-1.5 text-xs relative">
+                <!-- 🎯 [요구 1 반영] 회원 초고속 출석 검색대 래퍼박스 자체에 ID를 부여하여 관리자 전용 제어 연동 -->
+                <div id="adminOnlyAttendanceInputWrapper" class="space-y-1.5 text-xs relative hidden">
+                    <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
+                        <h2 class="text-xs font-black text-indigo-600 flex items-center gap-1">👥 회원 초고속 출석 검색대 (관리자전용)</h2>
+                    </div>
                     <label class="block text-[10px] font-black text-slate-500">⌨️ 이름 치고 Enter 누르면 즉시 출석/복귀</label>
                     <input type="text" id="inputKeyboardAttendance" placeholder="예: 유재석" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     
@@ -103,7 +105,9 @@
                 </div>
 
                 <div class="space-y-1.5">
-                    <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">클럽 전체 회원 리스트 (클릭 시 출석/제외)</h3>
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">클럽 전체 회원 명단 (<span id="attendeeCountLabel" class="font-mono font-black text-indigo-600">0명</span> 참여)</h3>
+                    </div>
                     <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
                 
@@ -111,6 +115,15 @@
                     <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2 flex items-center gap-1">🚨 대기열 제외 명단 (부상, 불참, 휴식자)</h3>
                     <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
                 </div>
+            </div>
+
+            <!-- 정모 시작 전 활성화되는 최근 전적 명세 스냅샷 대기실 보드 -->
+            <div id="beforeStartStatsBox" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
+                <div class="border-b border-slate-100 pb-2">
+                    <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">🏆 정모 참가자 MMR 랭킹 리스트 (시작 전)</h3>
+                    <p class="text-[9px] text-slate-400 mt-0.5">현재 출석 완료된 회원들이 MMR 점수가 높은 고수 순서대로 자동 정렬됩니다.</p>
+                </div>
+                <div class="overflow-y-auto max-h-[380px] divide-y divide-slate-100 text-[11px] font-medium scrollbar-thin" id="beforeStartPlayersList"></div>
             </div>
         </section>
 
@@ -136,17 +149,6 @@
         <!-- 📊 [구역 C] 실시간 성적표 / 정모 대기실 대형 명세서 통합 패널 -->
         <!-- ========================================== -->
         <section id="sec-stats" class="md:col-span-4 space-y-4">
-            
-            <!-- 🎯 [요구 2, 3 분기 반영] 예정 상태일 때 우측에 큼직하게 붙을 MMR 랭킹 정렬 대기 명세서 -->
-            <div id="beforeStartStatsBox" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
-                <div class="border-b border-slate-100 pb-2">
-                    <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">🏆 정모 참가자 MMR 랭킹 리스트 (시작 전)</h3>
-                    <p class="text-[9px] text-slate-400 mt-0.5">현재 출석 완료된 회원들이 MMR 점수가 높은 고수 순서대로 자동 정렬됩니다.</p>
-                </div>
-                <div class="overflow-y-auto max-h-[480px] divide-y divide-slate-100 text-[11px] font-medium scrollbar-thin" id="beforeStartPlayersList"></div>
-            </div>
-
-            <!-- 🎯 진행중/종료 상태일 때만 드러날 성적표 및 개인 검색 컴포넌트 벨트 -->
             <div id="liveStatsActiveWrapper" class="hidden flex-col gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
                     <h2 class="text-xs font-black text-slate-700 border-b border-slate-100 pb-2 mb-3">🔥 오늘의 실시간 성적표</h2>
@@ -176,30 +178,40 @@
         </section>
     </main>
 
-    <!-- 결과 입력 모달 -->
+    <!-- 스코어 입력 팝업창 모달 -->
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
             <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
                 <h3 class="text-sm font-black text-slate-900">🏆 매치 경기 결과 스코어 기록</h3>
                 <button id="btnCloseScoreModal" class="text-slate-400 font-bold text-sm">✕</button>
             </div>
-            <div class="space-y-3 text-xs">
-                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                    <div class="flex justify-between font-bold"><span class="text-indigo-600">A팀 (좌측)</span> <span id="modalTeamANames" class="text-slate-800 font-extrabold"></span></div>
-                    <div class="flex justify-between font-bold"><span class="text-emerald-600">B팀 (우측)</span> <span id="modalTeamBNames" class="text-slate-800 font-extrabold"></span></div>
-                </div>
-                <div class="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                        <label class="block text-[11px] font-black text-indigo-700 mb-1">A팀 스코어</label>
-                        <input type="number" id="inputScoreA" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-black text-emerald-700 mb-1">B팀 스코어</label>
-                        <input type="number" id="inputScoreB" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none">
-                    </div>
+            
+            <!-- 🎯 [요구 4 반영] 승리팀 라디오 단추 마킹 기믹 레이아웃 장착 -->
+            <div class="space-y-4 text-xs">
+                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
+                    <p class="text-[10px] font-black text-slate-400 uppercase text-center border-b border-slate-200 pb-1">🥇 승리 팀을 선택해 주세요</p>
+                    
+                    <!-- A팀 라디오 라벨 벨트 -->
+                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-indigo-50/50 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="winnerSelect" value="A" id="radioWinA" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                            <div class="text-left"><span class="text-[9px] font-black text-indigo-500 block">TEAM A</span><span id="modalTeamANames" class="text-xs font-black text-slate-800"></span></div>
+                        </div>
+                        <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1 font-mono font-black text-sm outline-none">
+                    </label>
+
+                    <!-- B팀 라디오 라벨 벨트 -->
+                    <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-emerald-50/50 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="winnerSelect" value="B" id="radioWinB" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-left"><span class="text-[9px] font-black text-emerald-500 block">TEAM B</span><span id="modalTeamBNames" class="text-xs font-black text-slate-800"></span></div>
+                        </div>
+                        <input type="number" id="inputScoreB" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1 font-mono font-black text-sm outline-none">
+                    </label>
                 </div>
             </div>
-            <button id="btnSubmitMatchScore" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-xs py-2.5 rounded-xl transition shadow-sm cursor-pointer">💾 최종 경기 결과 확정 및 정산</button>
+            
+            <button id="btnSubmitMatchScore" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs py-3 rounded-xl transition shadow-md cursor-pointer">💾 최종 경기 결과 확정 및 정산</button>
         </div>
     </div>
 
