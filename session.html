@@ -15,6 +15,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-24 md:pb-6">
 
+    <!-- 세션 상단 정보 헤더 -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div class="text-center sm:text-left">
@@ -35,13 +36,15 @@
                     </select>
                 </div>
                 
+                <!-- 👑 [버그 수정] 인지력 강화를 위해 보정된 관리자 전용 제어 단추 상단바 배치 -->
                 <div id="adminPanel" class="hidden gap-2">
-                    <button id="btnToggleStatus" class="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs"></button>
+                    <button id="btnToggleStatus" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"></button>
                 </div>
             </div>
         </div>
     </header>
 
+    <!-- 📱 모바일 하단 고정 내비게이션 바 -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-xl z-50 flex md:hidden items-center justify-around py-3">
         <button onclick="switchMobileTab('sec-courts', 'nav-tab-courts')" id="nav-tab-courts" class="flex flex-col items-center gap-0.5 text-indigo-600 font-black text-xs">
             <span class="text-base">🏟️</span><span>라이브 대진</span>
@@ -54,10 +57,15 @@
         </button>
     </nav>
 
+    <!-- 메인 레이아웃 반응형 그리드 -->
     <main class="max-w-6xl mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-5">
         
-        <section id="sec-attendance" class="md:col-span-4 space-y-4 hidden md:block">
+        <!-- ========================================== -->
+        <!-- 👥 [구역 A] 출석 체크 및 대기열 제외 관리소 -->
+        <!-- ========================================== -->
+        <section id="sec-attendance" class="md:col-span-4 space-y-4">
             
+            <!-- 환경 제어 박스 -->
             <div id="adminConfigBox" class="hidden bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl p-4 shadow-3xl flex-col gap-3">
                 <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">⚙️ 라이브 정모 환경 제어 (실시간 반영)</h3>
                 <div class="grid grid-cols-2 gap-2 text-xs">
@@ -77,6 +85,7 @@
                 </div>
             </div>
 
+            <!-- 타자식 출석부 -->
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-4">
                 <div class="border-b border-slate-100 pb-2 flex justify-between items-center">
                     <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">👥 회원 초고속 출석 검색대</h2>
@@ -103,18 +112,12 @@
                     <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
                 </div>
             </div>
-
-            <div id="beforeStartStatsBox" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
-                <div class="border-b border-slate-100 pb-2">
-                    <h3 class="text-xs font-black text-slate-800">📋 정모 대기자 전적 상태 명세서</h3>
-                    <p class="text-[9px] text-slate-400 mt-0.5">매칭 가동 전에 회원들의 누적 스탯을 한눈에 점검합니다.</p>
-                </div>
-                <div class="overflow-y-auto max-h-[220px] divide-y divide-slate-100 text-[11px] font-medium scrollbar-thin" id="beforeStartPlayersList">
-                    </div>
-            </div>
         </section>
 
-        <section id="sec-courts" class="md:col-span-5 space-y-4">
+        <!-- ========================================== -->
+        <!-- 🏟️ [구역 B] 라이브 순위 우선 대진표 전광판   -->
+        <!-- ========================================== -->
+        <section id="sec-courts" class="md:col-span-4 space-y-4">
             <div id="unsubmittedAlertBox" class="hidden flex-col gap-2 bg-rose-50 border-2 border-rose-200 rounded-2xl p-3 shadow-3xs animate-pulse">
                 <h3 class="text-xs font-black text-rose-900 flex items-center gap-1">⚠️ 스코어 점수 결과 미입력 매치 홀딩 건</h3>
                 <div id="unsubmittedMatchesList" class="space-y-1.5"></div>
@@ -129,36 +132,53 @@
             </div>
         </section>
 
-        <section id="sec-stats" class="md:col-span-3 space-y-4 hidden md:block">
-            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
-                <h2 class="text-xs font-black text-slate-700 border-b border-slate-100 pb-2 mb-3">🔥 오늘의 실시간 성적표</h2>
-                <div class="overflow-x-auto max-h-[260px] overflow-y-auto rounded-xl border border-slate-100 scrollbar-thin">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black tracking-wide text-center">
-                                <th class="py-2 px-1">이름</th>
-                                <th class="py-2 px-1">전적</th>
-                                <th class="py-2 px-1">승률</th>
-                                <th class="py-2 px-1">MMR</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sessionLiveRankTableBody" class="text-xs text-center divide-y divide-slate-100 font-mono font-medium"></tbody>
-                    </table>
+        <!-- ========================================== -->
+        <!-- 📊 [구역 C] 실시간 성적표 / 정모 대기실 대형 명세서 통합 패널 -->
+        <!-- ========================================== -->
+        <section id="sec-stats" class="md:col-span-4 space-y-4">
+            
+            <!-- 🎯 [요구 2, 3 분기 반영] 예정 상태일 때 우측에 큼직하게 붙을 MMR 랭킹 정렬 대기 명세서 -->
+            <div id="beforeStartStatsBox" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
+                <div class="border-b border-slate-100 pb-2">
+                    <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">🏆 정모 참가자 MMR 랭킹 리스트 (시작 전)</h3>
+                    <p class="text-[9px] text-slate-400 mt-0.5">현재 출석 완료된 회원들이 MMR 점수가 높은 고수 순서대로 자동 정렬됩니다.</p>
                 </div>
+                <div class="overflow-y-auto max-h-[480px] divide-y divide-slate-100 text-[11px] font-medium scrollbar-thin" id="beforeStartPlayersList"></div>
             </div>
 
-            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
-                <h2 class="text-xs font-black text-slate-700 mb-2">🔍 당일 개인 마감 전적 일지</h2>
-                <div class="flex gap-1.5 mb-2">
-                    <input type="text" id="inputLocalSearchPlayer" placeholder="이름을 입력하면 즉시 필터링" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs outline-none font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+            <!-- 🎯 진행중/종료 상태일 때만 드러날 성적표 및 개인 검색 컴포넌트 벨트 -->
+            <div id="liveStatsActiveWrapper" class="hidden flex-col gap-4">
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
+                    <h2 class="text-xs font-black text-slate-700 border-b border-slate-100 pb-2 mb-3">🔥 오늘의 실시간 성적표</h2>
+                    <div class="overflow-x-auto max-h-[260px] overflow-y-auto rounded-xl border border-slate-100 scrollbar-thin">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black tracking-wide text-center">
+                                    <th class="py-2 px-1">이름</th>
+                                    <th class="py-2 px-1">전적</th>
+                                    <th class="py-2 px-1">승률</th>
+                                    <th class="py-2 px-1">MMR</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionLiveRankTableBody" class="text-xs text-center divide-y divide-slate-100 font-mono font-medium"></tbody>
+                        </table>
+                    </div>
                 </div>
-                <div id="localSearchResultContainer" class="space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin"></div>
+
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
+                    <h2 class="text-xs font-black text-slate-700 mb-2">🔍 당일 개인 마감 전적 일지</h2>
+                    <div class="flex gap-1.5 mb-2">
+                        <input type="text" id="inputLocalSearchPlayer" placeholder="이름을 입력하면 즉시 필터링" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs outline-none font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    </div>
+                    <div id="localSearchResultContainer" class="space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin"></div>
+                </div>
             </div>
         </section>
     </main>
 
+    <!-- 결과 입력 모달 -->
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 space-y-4">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
             <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
                 <h3 class="text-sm font-black text-slate-900">🏆 매치 경기 결과 스코어 기록</h3>
                 <button id="btnCloseScoreModal" class="text-slate-400 font-bold text-sm">✕</button>
@@ -171,11 +191,11 @@
                 <div class="grid grid-cols-2 gap-4 text-center">
                     <div>
                         <label class="block text-[11px] font-black text-indigo-700 mb-1">A팀 스코어</label>
-                        <input type="number" id="inputScoreA" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="number" id="inputScoreA" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none">
                     </div>
                     <div>
                         <label class="block text-[11px] font-black text-emerald-700 mb-1">B팀 스코어</label>
-                        <input type="number" id="inputScoreB" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="number" id="inputScoreB" min="0" placeholder="0" class="w-full text-center bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono font-black text-sm outline-none">
                     </div>
                 </div>
             </div>
@@ -185,33 +205,22 @@
 
     <script type="module" src="./app.js"></script>
     <script>
-        // 📱 [버그 종결] 모바일 화면 증발 오류를 도려낸 안전 탭 전전환 시스템
         function switchMobileTab(targetSectionId, activeTabButtonId) {
-            if(window.innerWidth >= 768) return; // PC 환경이면 작동 거부 스킵
-            
+            if(window.innerWidth >= 768) return;
             const sections = ['sec-courts', 'sec-attendance', 'sec-stats'];
             sections.forEach(id => {
                 const dom = document.getElementById(id);
                 if(dom) dom.style.display = 'none';
             });
-            
             const activeSection = document.getElementById(targetSectionId);
-            if(activeSection) {
-                activeSection.style.display = 'block';
-                activeSection.classList.remove('hidden');
-            }
+            if(activeSection) { activeSection.style.display = 'block'; activeSection.classList.remove('hidden'); }
 
             const tabButtons = ['nav-tab-courts', 'nav-tab-attendance', 'nav-tab-stats'];
             tabButtons.forEach(btnId => {
                 const btn = document.getElementById(btnId);
                 if(!btn) return;
-                if(btnId === activeTabButtonId) {
-                    btn.classList.remove('text-slate-400', 'font-bold');
-                    btn.classList.add('text-indigo-600', 'font-black');
-                } else {
-                    btn.classList.remove('text-indigo-600', 'font-black');
-                    btn.classList.add('text-slate-400', 'font-bold');
-                }
+                if(btnId === activeTabButtonId) { btn.classList.remove('text-slate-400', 'font-bold'); btn.classList.add('text-indigo-600', 'font-black'); } 
+                else { btn.classList.remove('text-indigo-600', 'font-black'); btn.classList.add('text-slate-400', 'font-bold'); }
             });
         }
     </script>
