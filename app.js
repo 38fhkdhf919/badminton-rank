@@ -1,15 +1,15 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// ⚠️ 관리자님의 실제 파이어베이스 주소 및 키값을 정확히 유지해 주세요!
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_AUTH_DOMAIN_HERE",
+    apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
+    authDomain: "badminton-live-rank.firebaseapp.com",
     databaseURL: "https://badminton-live-rank-default-rtdb.asia-southeast1.firebasedatabase.app", 
-    projectId: "YOUR_PROJECT_ID_HERE",
-    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-    appId: "YOUR_APP_ID_HERE"
+    projectId: "badminton-live-rank",
+    storageBucket: "badminton-live-rank.firebasestorage.app",
+    messagingSenderId: "803402263930",
+    appId: "1:803402263930:web:ebe85b833a86d6acd33ac3",
+    measurementId: "G-SE2PTKXVDJ"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -21,17 +21,20 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 파이어베이스 /players 창고 실시간 리스너 연결
+// 📡 파이어베이스 /players 실시간 동기화
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
         window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
         window.allSystemPlayers.sort((a, b) => a.id - b.id);
         
-        // 데이터 도달 시 대문 혹은 세션 동기화 주입
-        if (document.getElementById('globalRankTableBody') && window.currentActiveSession === null) {
+        // 데이터 도달 시 현재 열려있는 페이지 컨텍스트에 맞춰 렌더링 리트리거 가동
+        if (document.getElementById('globalRankTableBody')) {
             const sessionsRef = ref(db, 'sessions');
             onValue(sessionsRef, (snap) => { if(snap.val()) calculateGlobalLeaderboard(snap.val()); }, { onlyOnce: true });
+        } else if (window.currentActiveSession) {
+            renderAttendanceBox(window.currentActiveSession);
+            renderSessionRankTable(window.currentActiveSession);
         }
     }
 });
@@ -101,7 +104,7 @@ window.initDashboardPage = function() {
 
             return `
                 <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-3xs hover:border-indigo-400 transition-all">
-                    <a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1">
+                    <a href="./session.html?id=${id}" class="block flex-1 space-y-1">
                         <div class="flex items-center gap-2">
                             <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
                             <span class="text-[9px] font-black px-1.5 py-0.5 rounded border ${badgeStyle}">${s.status}</span>
@@ -133,7 +136,6 @@ window.initDashboardPage = function() {
             e.preventDefault();
             const title = document.getElementById('newSessionTitle').value.trim();
             const dateVal = document.getElementById('newSessionDate').value;
-            // 🎯 수동 커스텀 점수 수집 기어 파싱
             const scoreVal = parseInt(document.getElementById('newSessionTargetScore').value) || 25;
             const isTest = document.getElementById('checkboxTestMode').checked;
 
@@ -222,7 +224,7 @@ function calculateGlobalLeaderboard(allSessions) {
     });
     const closeBtn = document.getElementById('btnCloseModal');
     if(closeBtn) closeBtn.onclick = () => document.getElementById('chartModal').classList.add('hidden');
-};
+}
 
 // ==========================================
 // 🏟️ 특정 정모 세션 제어 라이브 채널
@@ -232,18 +234,55 @@ window.initSessionPage = function() {
     window.currentSessionKey = urlParams.get('id');
     if (!window.currentSessionKey) return;
 
-    if(urlParams.get('admin') === 'true') {
-        isAdminMode = true;
-        localStorage.setItem("badminton_admin_login", "true");
-    }
-
     const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
     onValue(sessionRef, (snapshot) => {
         const s = snapshot.val();
         if (!s) return;
         window.currentActiveSession = s;
 
-        // 🎯 [요구 3 반영] 관리자 실시간 기어 환경박스 바인딩 제어
+        document.getElementById('sessionMainTitle').innerText = s.title;
+        document.getElementById('sessionMetaText').innerText = `📅 정모일: ${s.date || '미정'} • 🎯 목표스코어: ${s.targetScore || 25}점 제`;
+        
+        const statusBadge = document.getElementById('sessionStatusBadge');
+        if(statusBadge) {
+            statusBadge.innerText = s.status;
+            if(s.status === "진행중") statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse";
+            else if(s.status === "종료") statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200";
+            else statusBadge.className = "text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200";
+        }
+
+        // 🎯 [요구 1 해결] 관리자 식별 패널 조립 가드 레일 완벽 활성화
+        const adminPanel = document.getElementById('adminPanel');
+        const btnToggleStatus = document.getElementById('btnToggleStatus');
+        if (isAdminMode && adminPanel && btnToggleStatus) {
+            adminPanel.classList.remove('hidden');
+            adminPanel.classList.add('flex');
+            btnToggleStatus.innerText = s.status === "예정" ? "▶️ 정모 매칭 가동 시작" : (s.status === "진행중" ? "🛑 오늘 정모 최종 마감/종료" : "🔒 정모 폐쇄됨");
+            btnToggleStatus.disabled = s.status === "종료";
+            
+            btnToggleStatus.onclick = function() {
+                if (s.status === "예정") {
+                    update(sessionRef, { status: "진행중" }).then(() => recalculateLiveQueueMatch());
+                } else if (s.status === "진행중") {
+                    if (confirm("오늘 정모를 최종 마감하시겠습니까? 종료 후에는 매칭 알고리즘이 정지하며 아카이브로 보관됩니다.")) {
+                        update(sessionRef, { status: "종료" });
+                    }
+                }
+            };
+        }
+
+        // 🎯 [요구 2 해결] 상태 기반 우측 섹션 가시성 강제 파싱 필터링
+        const beforeStatsBox = document.getElementById('beforeStartStatsBox');
+        const liveStatsWrapper = document.getElementById('liveStatsActiveWrapper');
+        if(s.status === "예정") {
+            if(beforeStatsBox) beforeStatsBox.classList.remove('hidden');
+            if(liveStatsWrapper) { liveStatsWrapper.classList.remove('flex'); liveStatsWrapper.classList.add('hidden'); }
+        } else {
+            if(beforeStatsBox) beforeStatsBox.classList.add('hidden');
+            if(liveStatsWrapper) { liveStatsWrapper.classList.remove('hidden'); liveStatsWrapper.classList.add('flex'); }
+        }
+
+        // 동적 기어 환경 바인딩
         const configBox = document.getElementById('adminConfigBox');
         if(configBox && isAdminMode) {
             configBox.classList.remove('hidden'); configBox.classList.add('flex');
@@ -252,7 +291,6 @@ window.initSessionPage = function() {
             if(selCourts) selCourts.value = s.courts || 2;
             if(inpScore) inpScore.value = s.targetScore || 25;
             
-            // 즉석 변경 이벤트 탑재
             selCourts.onchange = function() { update(sessionRef, { courts: parseInt(this.value) }).then(() => recalculateLiveQueueMatch()); };
             inpScore.onchange = function() { update(sessionRef, { targetScore: parseInt(this.value) || 25 }); };
         }
@@ -261,7 +299,6 @@ window.initSessionPage = function() {
         renderLiveCourtsGrid(s);
         renderSessionRankTable(s);
         
-        // 🎯 [요구 5 반영] 검색창 입력 대기 리스너 결합
         const searchInput = document.getElementById('inputLocalSearchPlayer');
         if(searchInput) {
             if(!searchInput.value) searchInput.value = localStorage.getItem("my_badminton_name") || "";
@@ -270,14 +307,13 @@ window.initSessionPage = function() {
         }
     });
 
-    // 📡 피드백 동기화 대기선 가동
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
             window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
             window.allSystemPlayers.sort((a, b) => a.id - b.id);
-            buildIdentityDropdown(); // 👤 [요구 6 복원] 명단 입고 직후 내 이름 셀렉터 드롭다운 그리기 호출
+            buildIdentityDropdown();
             if(window.currentActiveSession) {
                 renderAttendanceBox(window.currentActiveSession);
                 renderSessionRankTable(window.currentActiveSession);
@@ -286,83 +322,44 @@ window.initSessionPage = function() {
     });
 };
 
-// 👤 [요구 6 복원] 상단 내 이름 바인딩 시스템 어태치먼트
 function buildIdentityDropdown() {
     const select = document.getElementById('selectMyIdentity');
     if (!select || select.options.length > 1) return;
-    
     window.allSystemPlayers.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.name;
-        opt.innerText = `${p.name} (${p.tier}조)`;
-        select.appendChild(opt);
+        const opt = document.createElement('option'); opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`; select.appendChild(opt);
     });
-
     const savedName = localStorage.getItem("my_badminton_name");
-    if (savedName) {
-        select.value = savedName;
-    }
-
+    if (savedName) select.value = savedName;
     select.onchange = function() {
-        const val = this.value;
-        localStorage.setItem("my_badminton_name", val);
+        const val = this.value; localStorage.setItem("my_badminton_name", val);
         const searchInput = document.getElementById('inputLocalSearchPlayer');
         if(searchInput) { searchInput.value = val; executeLocalRecordSearch(val); }
     };
 }
 
-// 🎯 [요구 4 반영] 키보드 초고속 서치바 & 동명이인 나이 분기 타격기 엔진
 if(document.getElementById('inputKeyboardAttendance')) {
     document.getElementById('inputKeyboardAttendance').onkeydown = function(e) {
         if(e.key === 'Enter') {
-            e.preventDefault();
-            const query = this.value.trim();
-            if(!query) return;
-
-            // 전체 시스템 명단에서 동명이인 전량 필터 스캔
+            e.preventDefault(); const query = this.value.trim(); if(!query) return;
             const matched = window.allSystemPlayers.filter(x => x.name === query);
-            if(matched.length === 0) { alert("❌ 명단에 등록되지 않은 이름입니다."); return; }
-
+            if(matched.length === 0) { alert("❌ 명단에 없는 이름입니다."); return; }
             if(matched.length > 1) {
-                // ⚠️ 동명이인이 발견되면 안내 패널 레이어를 열어 강제 선택 유도 분기 가동
-                const box = document.getElementById('duplicateSelectionBox');
-                const listWrapper = document.getElementById('duplicateListWrapper');
+                const box = document.getElementById('duplicateSelectionBox'); const listWrapper = document.getElementById('duplicateListWrapper');
                 box.classList.remove('hidden');
-                
-                listWrapper.innerHTML = matched.map(p => {
-                    // 명단 필드 내의 나이(age) 속성을 매핑 처리 (없으면 ID 출력 보정)
-                    const ageLabel = p.age ? `${p.age}세` : `ID ${p.id}번`;
-                    return `<button data-id="${p.id}" class="btn-resolve-dup text-left w-full bg-slate-50 hover:bg-indigo-50 border p-1.5 font-bold rounded-lg text-[11px] text-slate-800">${p.name} (${ageLabel} / ${p.tier}조)</button>`;
-                }).join('');
-
+                listWrapper.innerHTML = matched.map(p => `<button data-id="${p.id}" class="btn-resolve-dup text-left w-full bg-slate-50 hover:bg-indigo-50 border p-1.5 font-bold rounded-lg text-[11px] text-slate-800">${p.name} (ID:${p.id} / ${p.tier}조)</button>`).join('');
                 document.querySelectorAll('.btn-resolve-dup').forEach(btn => {
-                    btn.onclick = function() {
-                        commitAttendanceAction(parseInt(this.getAttribute('data-id')));
-                        box.classList.add('hidden');
-                        document.getElementById('inputKeyboardAttendance').value = "";
-                    };
+                    btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); box.classList.add('hidden'); document.getElementById('inputKeyboardAttendance').value = ""; };
                 });
-            } else {
-                // 단독 고유 플레이어일 경우 엔터 즉시 소환 출석 처리 완료
-                commitAttendanceAction(matched[0].id);
-                this.value = "";
-            }
+            } else { commitAttendanceAction(matched[0].id); this.value = ""; }
         }
     };
 }
 
 function commitAttendanceAction(pId) {
-    const s = window.currentActiveSession;
-    if(!s) return;
-    let nextAttendees = s.attendees ? [...s.attendees] : [];
-    let nextRest = s.restPlayers ? [...s.restPlayers] : [];
-
-    if (!nextAttendees.includes(pId)) {
-        nextAttendees.push(pId);
-    } else {
-        if (!nextRest.includes(pId)) nextRest.push(pId);
-        else { nextRest = nextRest.filter(x => x !== pId); nextAttendees = nextAttendees.filter(x => x !== pId); }
-    }
+    const s = window.currentActiveSession; if(!s) return;
+    let nextAttendees = s.attendees ? [...s.attendees] : []; let nextRest = s.restPlayers ? [...s.restPlayers] : [];
+    if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
+    else { if (!nextRest.includes(pId)) nextRest.push(pId); else { nextRest = nextRest.filter(x => x !== pId); nextAttendees = nextAttendees.filter(x => x !== pId); } }
     update(ref(db, `sessions/${window.currentSessionKey}`), { attendees: nextAttendees, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
 }
 
@@ -381,104 +378,74 @@ function renderAttendanceBox(s) {
                 if(isResting) btnStyle = "bg-amber-100 text-amber-800 border-amber-300 line-through";
                 return `<button data-id="${p.id}" class="btn-toggle-attend text-[10px] px-2 py-0.5 rounded-lg font-medium transition cursor-pointer ${btnStyle}">${p.name}</button>`;
             }).join('');
-
             document.querySelectorAll('.btn-toggle-attend').forEach(btn => {
                 btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); };
             });
         }
     }
 
-    // 🎯 [요구 8 반영] 대기열 제외 쉼터 복귀 처리기 가드
     const restContainer = document.getElementById('restPlayersContainer');
     if (restContainer) {
-        if (restList.length === 0) {
-            restContainer.innerHTML = `<div class="text-[10px] text-slate-400 italic py-1">제외자가 없습니다.</div>`;
-        } else {
+        if (restList.length === 0) restContainer.innerHTML = `<div class="text-[10px] text-slate-400 italic py-1">제외자가 없습니다.</div>`;
+        else {
             restContainer.innerHTML = restList.map(id => {
-                const p = window.allSystemPlayers.find(x => x.id === id);
-                const backBtn = s.status !== "종료" ? `<span class="bg-amber-500 text-white font-sans font-black text-[9px] px-1 rounded-sm ml-1 cursor-pointer">복귀</span>` : '';
+                const p = window.allSystemPlayers.find(x => x.id === id); const backBtn = s.status !== "종료" ? `<span class="bg-amber-500 text-white font-sans font-black text-[9px] px-1 rounded-sm ml-1 cursor-pointer">복귀</span>` : '';
                 return `<div data-id="${id}" class="btn-return-queue flex items-center bg-amber-50 border border-amber-200 text-amber-800 font-bold px-2 py-0.5 rounded-lg text-[10px]">${p ? p.name : id}${backBtn}</div>`;
             }).join('');
-
             if(s.status !== "종료") {
                 document.querySelectorAll('.btn-return-queue').forEach(div => {
-                    div.onclick = function() {
-                        const pId = parseInt(this.getAttribute('data-id'));
-                        const nextRest = restList.filter(x => x !== pId);
-                        update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
-                    };
+                    div.onclick = function() { const pId = parseInt(this.getAttribute('data-id')); const nextRest = restList.filter(x => x !== pId); update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch()); };
                 });
             }
         }
     }
 
-    // 🎯 [요구 5 반영] 매칭 가동 전(예정 상태), 대기실 인원 누적 전적/승률 5경기 이력 대형 현황판 렌더링 가동
-    const beforeStatsBox = document.getElementById('beforeStartStatsBox');
+    // 🎯 [요구 3 해결] 대기실 참가자 명단을 MMR 내림차순(높은 순서)으로 강력 정렬 가동
     const beforeListContainer = document.getElementById('beforeStartPlayersList');
-    if(beforeStatsBox && beforeListContainer) {
-        if(s.status !== "예정") {
-            beforeStatsBox.classList.add('hidden'); // 정모가 시작되면 이 보드는 자동 소멸 숨김
+    if(beforeListContainer && s.status === "예정") {
+        if(attendees.length === 0) {
+            beforeListContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">출석체크된 대기 인원이 현재 없습니다.</div>`;
         } else {
-            beforeStatsBox.classList.remove('hidden');
-            if(attendees.length === 0) {
-                beforeListContainer.innerHTML = `<div class="text-center py-4 text-slate-400">출석체크된 대기 인원이 아직 없습니다.</div>`;
-            } else {
-                beforeListContainer.innerHTML = attendees.map(id => {
-                    const p = window.allSystemPlayers.find(x => x.id === id);
-                    if(!p) return '';
-                    return `
-                        <div class="flex justify-between items-center py-2 text-slate-700">
-                            <span class="font-black text-slate-900">${p.name} <span class="text-[9px] text-indigo-500 font-bold">(${p.tier}조)</span></span>
-                            <div class="font-mono text-[10px] space-x-2 text-slate-500">
-                                <span>📈 MMR: <span class="text-slate-900 font-bold">${p.displayMmr}</span></span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
+            let activeAttendeesObjects = attendees.map(id => window.allSystemPlayers.find(x => x.id === id)).filter(Boolean);
+            
+            // 🔥 MMR 레이팅이 높은 순서대로 칼 정렬!!
+            activeAttendeesObjects.sort((a, b) => b.displayMmr - a.displayMmr);
+
+            beforeListContainer.innerHTML = activeAttendeesObjects.map((p, rankIdx) => {
+                return `
+                    <div class="flex justify-between items-center py-2.5 text-slate-700">
+                        <span class="font-black text-slate-900"><span class="text-indigo-500 font-mono mr-1">[${rankIdx + 1}등]</span> ${p.name} <span class="text-[9px] text-slate-400 font-normal">(${p.tier}조)</span></span>
+                        <span class="font-mono text-xs text-slate-900 font-black bg-slate-100 px-2 py-0.5 rounded-md">⭐ ${p.displayMmr}점</span>
+                    </div>
+                `;
+            }).join('');
         }
     }
 }
 
-// ==========================================
-// 🎯 [요구 2 반영] 이긴팀 녹색, 진팀 적색 점수판 테두리 이식 모듈
-// ==========================================
 function renderLiveCourtsGrid(s) {
-    const liveContainer = document.getElementById('liveCourtsContainer');
-    if (!liveContainer) return;
-
-    const currentMatches = s.currentMatches || [];
-    const historyLog = s.historyLog || [];
+    const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
+    const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
 
     if (s.status === "예정") {
         liveContainer.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">대기중 채널입니다. 관리자가 정모 매칭 가동 시작 버튼을 누르면 추천 대진표 레이어가 개방됩니다.</div>`;
         return;
     }
 
-    // [개선 반영] 종료 상태 아카이브 전광판 리스트
     if(s.status === "종료") {
-        if(historyLog.length === 0) {
-            liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">오늘 마감된 경기 일지가 없습니다.</div>`;
-        } else {
+        if(historyLog.length === 0) liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">오늘 마감된 경기 일지가 없습니다.</div>`;
+        else {
             liveContainer.innerHTML = [...historyLog].reverse().map((m, idx) => {
-                const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', ');
-                const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
-                
-                // 🎯 [요구 2 반영] 마감 카드 스코어 좌우 판독 테두리 주입 연산
+                const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', '); const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
                 const winA = m.scoreA > m.scoreB;
                 const borderA = winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
                 const borderB = !winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
-
                 return `
                     <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-3xs space-y-2.5">
                         <div class="text-[10px] font-black font-mono text-slate-400">🏁 제 ${historyLog.length - idx}경기 최종 스코어</div>
                         <div class="grid grid-cols-2 gap-3 text-center text-xs">
-                            <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderA}">
-                                <span class="truncate">${aNames}</span> <span class="font-mono font-black">${m.scoreA}</span>
-                            </div>
-                            <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderB}">
-                                <span class="font-mono font-black">${m.scoreB}</span> <span class="truncate">${bNames}</span>
-                            </div>
+                            <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderA}"><span>${aNames}</span> <span class="font-mono font-black">${m.scoreA}</span></div>
+                            <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderB}"><span class="font-mono font-black">${m.scoreB}</span> <span>${bNames}</span></div>
                         </div>
                     </div>
                 `;
@@ -492,29 +459,16 @@ function renderLiveCourtsGrid(s) {
         return;
     }
 
-    // 진행중 추천 매치 카드 조립
     liveContainer.innerHTML = currentMatches.map((m, idx) => {
         if (m.status === "완료") return '';
-        
-        const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', ');
-        const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
-        
+        const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', '); const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
         const isLive = m.status === "진행중";
         const mainCardBorder = isLive ? "border-2 border-indigo-500 bg-indigo-50/50 shadow-md scale-[1.01]" : "border border-slate-200 bg-white";
-        const badge = isLive 
-            ? `<span class="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md animate-pulse">⚡ 진행중</span>`
-            : `<span class="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-indigo-100">⏳ 추천대진 ${idx + 1}순위</span>`;
-
-        const ctrlBtn = isLive
-            ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">🛑 경기 종료</button>`
-            : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">▶️ 경기시작</button>`;
-
+        const badge = isLive ? `<span class="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md animate-pulse">⚡ 진행중</span>` : `<span class="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-indigo-100">⏳ 추천대진 ${idx + 1}순위</span>`;
+        const ctrlBtn = isLive ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">🛑 경기 종료</button>` : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">▶️ 경기시작</button>`;
         return `
             <div class="rounded-2xl p-4 transition-all space-y-3.5 ${mainCardBorder}">
-                <div class="flex justify-between items-center border-b border-slate-100/70 pb-1.5">
-                    ${badge}
-                    ${ctrlBtn}
-                </div>
+                <div class="flex justify-between items-center border-b border-slate-100/70 pb-1.5">${badge}${ctrlBtn}</div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
                     <div class="col-span-3 truncate text-left pl-1 bg-slate-100/60 p-2 rounded-xl border border-slate-200/50">${aNames}</div>
                     <div class="col-span-1 font-mono font-black text-slate-300">VS</div>
@@ -526,8 +480,7 @@ function renderLiveCourtsGrid(s) {
 
     document.querySelectorAll('.btn-start-match').forEach(btn => {
         btn.onclick = function() {
-            const mId = this.getAttribute('data-id');
-            const target = currentMatches.find(x => x.id === mId);
+            const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId);
             if(target) { target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: currentMatches }); }
         };
     });
@@ -537,40 +490,22 @@ function renderLiveCourtsGrid(s) {
 }
 
 function recalculateLiveQueueMatch() {
-    const s = window.currentActiveSession;
-    if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
-
-    let currentMatches = s.currentMatches || [];
-    const attendees = s.attendees || [];
-    const restList = s.restPlayers || [];
-    const historyLog = s.historyLog || [];
-    
-    // 🎯 [요구 7 반영] 사용 코트 수 동적 추출 
-    const maxCourts = s.courts || 2; 
-
-    const lockedMatches = currentMatches.filter(m => m.status === "진행중" || m.status === "완료");
-    let busyIds = new Set();
-    lockedMatches.forEach(m => { m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); });
+    const s = window.currentActiveSession; if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
+    let currentMatches = s.currentMatches || []; const attendees = s.attendees || []; const restList = s.restPlayers || []; const historyLog = s.historyLog || [];
+    const maxCourts = s.courts || 2; const lockedMatches = currentMatches.filter(m => m.status === "진행중" || m.status === "완료");
+    let busyIds = new Set(); lockedMatches.forEach(m => { m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); });
     restList.forEach(id => busyIds.add(id));
 
-    let availableIds = attendees.filter(id => !busyIds.has(id)); 
-    let playCounts = {};
-    attendees.forEach(id => playCounts[id] = 0);
+    let availableIds = attendees.filter(id => !busyIds.has(id)); let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
-
     let queue = availableIds.sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
-    let nextMatches = [...lockedMatches];
-    
-    // 🎯 설정된 코트수만큼 루프 캡 상한선 설정
-    const targetSlots = maxCourts - nextMatches.length;
+    let nextMatches = [...lockedMatches]; const targetSlots = maxCourts - nextMatches.length;
 
     for (let i = 0; i < targetSlots; i++) {
         if (queue.length >= 4) {
             const p1 = queue.shift(); const p2 = queue.shift(); const p3 = queue.shift(); const p4 = queue.shift();
             nextMatches.push({
-                id: `m_${Date.now()}_${i}`, status: "대기",
-                teamA: [p1, p2], teamB: [p3, p4],
-                teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
+                id: `m_${Date.now()}_${i}`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
             });
         }
     }
@@ -578,12 +513,9 @@ function recalculateLiveQueueMatch() {
 }
 
 function renderSessionRankTable(s) {
-    const tbody = document.getElementById('sessionLiveRankTableBody');
-    if (!tbody || window.allSystemPlayers.length === 0) return;
+    const tbody = document.getElementById('sessionLiveRankTableBody'); if (!tbody || window.allSystemPlayers.length === 0) return;
     const attendees = s.attendees || []; const historyLog = s.historyLog || [];
-
-    let map = {};
-    attendees.forEach(id => { const p = window.allSystemPlayers.find(x => x.id === id); map[id] = { name: p ? p.name : id, win: 0, lose: 0, scoreDiff: 0 }; });
+    let map = {}; attendees.forEach(id => { const p = window.allSystemPlayers.find(x => x.id === id); map[id] = { name: p ? p.name : id, win: 0, lose: 0, scoreDiff: 0 }; });
 
     historyLog.forEach(m => {
         const scoreA = m.scoreA || 0; const scoreB = m.scoreB || 0; const teamAWon = scoreA > scoreB;
@@ -593,20 +525,16 @@ function renderSessionRankTable(s) {
 
     let list = Object.entries(map).map(([id, val]) => ({ id: parseInt(id), ...val }));
     list.sort((a, b) => b.win - a.win || (b.win/(b.win+b.lose || 1)) - (a.win/(a.win+a.lose || 1)) || b.scoreDiff - a.scoreDiff);
-
     if (list.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-slate-400">참가자가 없습니다.</td></tr>`; return; }
     tbody.innerHTML = list.map((p, idx) => {
-        const total = p.win + p.lose; const rate = total > 0 ? Math.round((p.win / total) * 100) : 0;
-        const isHot = idx === 0 && p.win > 0;
+        const total = p.win + p.lose; const rate = total > 0 ? Math.round((p.win / total) * 100) : 0; const isHot = idx === 0 && p.win > 0;
         return `<tr class="${isHot ? 'hot-player-card text-red-600 font-black' : 'hover:bg-slate-50'}"><td class="py-2 px-1 font-bold">${p.name}${isHot ? ' 🔥' : ''}</td><td class="py-2 px-1 font-mono">${p.win}승 ${p.lose}패</td><td class="py-2 px-1 font-mono text-indigo-600 font-black">${rate}%</td><td class="py-2 px-1 font-mono font-bold">${p.scoreDiff > 0 ? '+' + p.scoreDiff : p.scoreDiff}</td></tr>`;
     }).join('');
 }
 
 let scoreModalTargetMatchId = null;
 function openScoreModal(mId) {
-    scoreModalTargetMatchId = mId;
-    const m = window.currentActiveSession.currentMatches.find(x => x.id === mId);
-    if (!m) return;
+    scoreModalTargetMatchId = mId; const m = window.currentActiveSession.currentMatches.find(x => x.id === mId); if (!m) return;
     document.getElementById('modalTeamANames').innerText = getNamesFromIds(m.teamA, m.teamANames).join(', ');
     document.getElementById('modalTeamBNames').innerText = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
     document.getElementById('inputScoreA').value = ''; document.getElementById('inputScoreB').value = '';
@@ -617,23 +545,17 @@ if(document.getElementById('btnSubmitMatchScore')) {
     document.getElementById('btnSubmitMatchScore').onclick = function() {
         const sA = parseInt(document.getElementById('inputScoreA').value); const sB = parseInt(document.getElementById('inputScoreB').value);
         if (isNaN(sA) || isNaN(sB)) { alert("점수를 기입하세요!"); return; }
-
-        const s = window.currentActiveSession;
-        let currentMatches = s.currentMatches || []; let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
+        const s = window.currentActiveSession; let currentMatches = s.currentMatches || []; let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
         const mIdx = currentMatches.findIndex(x => x.id === scoreModalTargetMatchId); if (mIdx === -1) return;
 
         let match = currentMatches[mIdx]; match.scoreA = sA; match.scoreB = sB; match.status = "완료";
-        historyLog.push({ ...match, timestamp: Date.now() });
-        currentMatches = currentMatches.filter(x => x.id !== scoreModalTargetMatchId);
+        historyLog.push({ ...match, timestamp: Date.now() }); currentMatches = currentMatches.filter(x => x.id !== scoreModalTargetMatchId);
 
-        const winTeamA = sA > sB;
-        const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
+        const winTeamA = sA > sB; const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
         let sumA = 0; let sumB = 0;
         match.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
         match.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
-        const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400));
-        const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
-
+        const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400)); const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
         const deltaA = Math.round(32 * (rA - expA)); const deltaB = Math.round(32 * (rB - expB));
         [...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
         match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
@@ -645,33 +567,22 @@ if(document.getElementById('btnSubmitMatchScore')) {
 }
 
 function executeLocalRecordSearch(queryName) {
-    const container = document.getElementById('localSearchResultContainer');
-    if(!container || window.allSystemPlayers.length === 0) return;
-    const query = queryName ? queryName.trim() : "";
-    if(!query) { container.innerHTML = `<div class="text-center py-4 text-slate-400 text-xs">이름 검색 대기 중</div>`; return; }
+    const container = document.getElementById('localSearchResultContainer'); if(!container || window.allSystemPlayers.length === 0) return;
+    const query = queryName ? queryName.trim() : ""; if(!query) { container.innerHTML = `<div class="text-center py-4 text-slate-400 text-xs">이름 검색 대기 중</div>`; return; }
 
     localStorage.setItem("my_badminton_name", query);
     const historyLog = window.currentActiveSession ? (window.currentActiveSession.historyLog || []) : [];
     const filtered = historyLog.filter(m => getNamesFromIds(m.teamA, m.teamANames).includes(query) || getNamesFromIds(m.teamB, m.teamBNames).includes(query)).reverse();
-
     if(filtered.length === 0) { container.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px]">기록이 없습니다.</div>`; return; }
     
-    // 🎯 [요구 2 반영] 당일 마감 조회 뷰어 내 팀 스코어 컬러 링 테두리 교정
     container.innerHTML = filtered.map(m => {
         const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
-        const isMyTeamA = aNames.includes(query);
-        const winA = m.scoreA > m.scoreB;
-        const isAmIWinner = (isMyTeamA && winA) || (!isMyTeamA && !winA);
-        
+        const isMyTeamA = aNames.includes(query); const winA = m.scoreA > m.scoreB; const isAmIWinner = (isMyTeamA && winA) || (!isMyTeamA && !winA);
         const borderA = winA ? "border border-emerald-300 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
         const borderB = !winA ? "border border-emerald-300 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
-
         return `
             <div class="bg-white border rounded-xl p-2.5 space-y-2 text-[11px] shadow-3xs">
-                <div class="flex justify-between items-center font-mono text-[10px] text-slate-400">
-                    <span>⏱️ 정산 완료 매치</span>
-                    <span class="font-black ${isAmIWinner ? 'text-emerald-600':'text-rose-500'}">${isAmIWinner ? 'WIN 🏆':'LOSE'}</span>
-                </div>
+                <div class="flex justify-between items-center font-mono text-[10px] text-slate-400"><span>⏱️ 정산 완료 매치</span><span class="font-black ${isAmIWinner ? 'text-emerald-600':'text-rose-500'}">${isAmIWinner ? 'WIN 🏆':'LOSE'}</span></div>
                 <div class="grid grid-cols-2 gap-2 text-center font-bold text-slate-700">
                     <div class="p-1 rounded-lg flex justify-between ${borderA}"><span>${aNames.join(',')}</span> <span>${m.scoreA}</span></div>
                     <div class="p-1 rounded-lg flex justify-between ${borderB}"><span>${m.scoreB}</span> <span>${bNames.join(',')}</span></div>
@@ -702,5 +613,6 @@ function executeGlobalRecordSearch() {
     }, { onlyOnce: true });
 }
 
+// 📡 진입로 판단부 바인딩 정상 결합 개조
 if (document.getElementById('globalRankTableBody')) { window.initDashboardPage(); } 
-else if (document.getElementById('selectMyIdentity')) { window.initSessionPage(); }
+if (document.getElementById('selectMyIdentity')) { window.initSessionPage(); }
