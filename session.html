@@ -37,7 +37,7 @@
                     </select>
                 </div>
                 
-                <!-- 👑 [요구 1 복원] 관리자 인증 유무를 수시로 풀고 잠글 수 있는 스위치 배치 -->
+                <!-- 👑 마스터 관리자 인증 토글 -->
                 <div>
                     <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1"></button>
                 </div>
@@ -70,6 +70,7 @@
         <!-- ========================================== -->
         <section id="sec-attendance" class="md:col-span-4 space-y-4">
             
+            <!-- 환경 제어 박스 -->
             <div id="adminConfigBox" class="hidden bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl p-4 shadow-3xl flex-col gap-3">
                 <h3 class="text-xs font-black text-indigo-950 flex items-center gap-1">⚙️ 라이브 정모 환경 제어 (실시간 반영)</h3>
                 <div class="grid grid-cols-2 gap-2 text-xs">
@@ -89,12 +90,16 @@
                 </div>
             </div>
 
+            <!-- 🎯 [필터 개조] 출석부 및 대기열 관리부 -->
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-4">
-                <!-- 🎯 [요구 1 반영] 회원 초고속 출석 검색대 래퍼박스 자체에 ID를 부여하여 관리자 전용 제어 연동 -->
+                <div class="border-b border-slate-100 pb-2 flex justify-between items-center">
+                    <!-- 자바스크립트에서 모드별로 타이틀 텍스트를 실시간 치환합니다 -->
+                    <h2 id="attendanceBoxTitle" class="text-xs font-black text-slate-700 flex items-center gap-1">👥 오늘 정모 대기 인원</h2>
+                    <span id="attendeeCountLabel" class="text-[9px] font-mono font-black bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-indigo-700">0명 참여</span>
+                </div>
+                
+                <!-- 관리자 전용 초고속 키보드 검색대 -->
                 <div id="adminOnlyAttendanceInputWrapper" class="space-y-1.5 text-xs relative hidden">
-                    <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
-                        <h2 class="text-xs font-black text-indigo-600 flex items-center gap-1">👥 회원 초고속 출석 검색대 (관리자전용)</h2>
-                    </div>
                     <label class="block text-[10px] font-black text-slate-500">⌨️ 이름 치고 Enter 누르면 즉시 출석/복귀</label>
                     <input type="text" id="inputKeyboardAttendance" placeholder="예: 유재석" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     
@@ -104,13 +109,12 @@
                     </div>
                 </div>
 
+                <!-- 명단 격자 출력 판넬 (일반 모드에선 오늘 출석자만, 관리자 모드에선 전체 회원 표시) -->
                 <div class="space-y-1.5">
-                    <div class="flex justify-between items-center">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">클럽 전체 회원 명단 (<span id="attendeeCountLabel" class="font-mono font-black text-indigo-600">0명</span> 참여)</h3>
-                    </div>
-                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
+                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
                 
+                <!-- 대기열 제외 명단 쉼터 -->
                 <div class="border-t border-slate-100 pt-3">
                     <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2 flex items-center gap-1">🚨 대기열 제외 명단 (부상, 불참, 휴식자)</h3>
                     <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
@@ -178,20 +182,16 @@
         </section>
     </main>
 
-    <!-- 스코어 입력 팝업창 모달 -->
+    <!-- 결과 입력 모달 -->
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
             <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
                 <h3 class="text-sm font-black text-slate-900">🏆 매치 경기 결과 스코어 기록</h3>
                 <button id="btnCloseScoreModal" class="text-slate-400 font-bold text-sm">✕</button>
             </div>
-            
-            <!-- 🎯 [요구 4 반영] 승리팀 라디오 단추 마킹 기믹 레이아웃 장착 -->
             <div class="space-y-4 text-xs">
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
                     <p class="text-[10px] font-black text-slate-400 uppercase text-center border-b border-slate-200 pb-1">🥇 승리 팀을 선택해 주세요</p>
-                    
-                    <!-- A팀 라디오 라벨 벨트 -->
                     <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-indigo-50/50 transition-colors">
                         <div class="flex items-center gap-2">
                             <input type="radio" name="winnerSelect" value="A" id="radioWinA" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
@@ -199,8 +199,6 @@
                         </div>
                         <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1 font-mono font-black text-sm outline-none">
                     </label>
-
-                    <!-- B팀 라디오 라벨 벨트 -->
                     <label class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-emerald-50/50 transition-colors">
                         <div class="flex items-center gap-2">
                             <input type="radio" name="winnerSelect" value="B" id="radioWinB" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
@@ -210,7 +208,6 @@
                     </label>
                 </div>
             </div>
-            
             <button id="btnSubmitMatchScore" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs py-3 rounded-xl transition shadow-md cursor-pointer">💾 최종 경기 결과 확정 및 정산</button>
         </div>
     </div>
