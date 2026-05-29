@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+// ⚠️ 관리자님의 실제 파이어베이스 주소 및 키값을 정확히 유지해 주세요!
 const firebaseConfig = {
     apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
     authDomain: "badminton-live-rank.firebaseapp.com",
@@ -233,7 +234,7 @@ window.initSessionPage = function() {
     window.currentSessionKey = urlParams.get('id');
     if (!window.currentSessionKey) return;
 
-    // 🎯 [요구 1 복원] 관리자 인증 토글 상단 버튼 셋업 보정
+    // 상단 관리자 마스터 토글 스위치 이벤트 결합
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         if (isAdminMode) {
@@ -294,7 +295,7 @@ window.initSessionPage = function() {
             };
         }
 
-        // 🎯 [요구 1 반영] 초고속 키보드 검색대는 오직 마스터 권한 스위치가 열렸을 때만 노출 가드
+        // 🎯 [요구 1 보완] 관리자 인증이 켜져 있을 때만 초고속 ⌨️ 키보드 검색창 개방
         const keyboardInputWrapper = document.getElementById('adminOnlyAttendanceInputWrapper');
         if(keyboardInputWrapper) {
             if(isAdminMode && s.status !== "종료") keyboardInputWrapper.classList.remove('hidden');
@@ -349,23 +350,11 @@ window.initSessionPage = function() {
         }
     });
 
-    // 🎯 [요구 4 반영] 라디오 단추 터치 타격 시 풀스코어 하이잭 자동 주입 이벤트 상시 선언
     setTimeout(() => {
-        const radioA = document.getElementById('radioWinA');
-        const radioB = document.getElementById('radioWinB');
+        const radioA = document.getElementById('radioWinA'); const radioB = document.getElementById('radioWinB');
         if(radioA && radioB) {
-            radioA.onchange = function() {
-                if(this.checked && window.currentActiveSession) {
-                    document.getElementById('inputScoreA').value = window.currentActiveSession.targetScore || 25;
-                    document.getElementById('inputScoreB').value = '';
-                }
-            };
-            radioB.onchange = function() {
-                if(this.checked && window.currentActiveSession) {
-                    document.getElementById('inputScoreB').value = window.currentActiveSession.targetScore || 25;
-                    document.getElementById('inputScoreA').value = '';
-                }
-            };
+            radioA.onchange = function() { if(this.checked && window.currentActiveSession) { document.getElementById('inputScoreA').value = window.currentActiveSession.targetScore || 25; document.getElementById('inputScoreB').value = ''; } };
+            radioB.onchange = function() { if(this.checked && window.currentActiveSession) { document.getElementById('inputScoreB').value = window.currentActiveSession.targetScore || 25; document.getElementById('inputScoreA').value = ''; } };
         }
     }, 1000);
 };
@@ -382,7 +371,7 @@ function buildIdentityDropdown() {
         const val = this.value; localStorage.setItem("my_badminton_name", val);
         const searchInput = document.getElementById('inputLocalSearchPlayer');
         if(searchInput) { searchInput.value = val; executeLocalRecordSearch(val); }
-        if(window.currentActiveSession) renderLiveCourtsGrid(window.currentActiveSession); // 내 이름 변경 시 격자 하이라이트 즉시 강제 갱신
+        if(window.currentActiveSession) renderLiveCourtsGrid(window.currentActiveSession);
     };
 }
 
@@ -405,6 +394,8 @@ if(document.getElementById('inputKeyboardAttendance')) {
 }
 
 function commitAttendanceAction(pId) {
+    // 🎯 [요구 1 보완] 관리자가 아니면 수동 엔터 출석 기능 연사 원천 커밋 차단
+    if(!isAdminMode) { alert("🔒 출석 및 명단 제어 권한은 관리자 전용입니다."); return; }
     const s = window.currentActiveSession; if(!s) return;
     let nextAttendees = s.attendees ? [...s.attendees] : []; let nextRest = s.restPlayers ? [...s.restPlayers] : [];
     if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
@@ -425,11 +416,18 @@ function renderAttendanceBox(s) {
                 const isChecked = attendees.includes(p.id); const isResting = restList.includes(p.id);
                 let btnStyle = isChecked ? "bg-indigo-600 text-white font-black" : "bg-slate-100 text-slate-600 border border-slate-200";
                 if(isResting) btnStyle = "bg-amber-100 text-amber-800 border-amber-300 line-through";
-                return `<button data-id="${p.id}" class="btn-toggle-attend text-[10px] px-2 py-0.5 rounded-lg font-medium transition cursor-pointer ${btnStyle}">${p.name}</button>`;
+                
+                // 🎯 [요구 1 보완] 관리자가 아닐 땐 버튼 비활성화 가드, 마우스 포인터 스타일 제거
+                const disableAttr = isAdminMode ? "" : "disabled style='cursor: default;'";
+                return `<button data-id="${p.id}" ${disableAttr} class="btn-toggle-attend text-[10px] px-2 py-0.5 rounded-lg font-medium transition ${btnStyle}">${p.name}</button>`;
             }).join('');
-            document.querySelectorAll('.btn-toggle-attend').forEach(btn => {
-                btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); };
-            });
+            
+            // 관리자 모드일 때만 원클릭 참석 트리거 리스너 바인딩
+            if(isAdminMode) {
+                document.querySelectorAll('.btn-toggle-attend').forEach(btn => {
+                    btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); };
+                });
+            }
         }
     }
 
@@ -438,10 +436,13 @@ function renderAttendanceBox(s) {
         if (restList.length === 0) restContainer.innerHTML = `<div class="text-[10px] text-slate-400 italic py-1">제외자가 없습니다.</div>`;
         else {
             restContainer.innerHTML = restList.map(id => {
-                const p = window.allSystemPlayers.find(x => x.id === id); const backBtn = s.status !== "종료" ? `<span class="bg-amber-500 text-white font-sans font-black text-[9px] px-1 rounded-sm ml-1 cursor-pointer">복귀</span>` : '';
+                const p = window.allSystemPlayers.find(x => x.id === id); 
+                // 관리자가 아닐 땐 복귀 뱃지 원천 숨김
+                const backBtn = (s.status !== "종료" && isAdminMode) ? `<span class="bg-amber-500 text-white font-sans font-black text-[9px] px-1 rounded-sm ml-1 cursor-pointer">복귀</span>` : '';
                 return `<div data-id="${id}" class="btn-return-queue flex items-center bg-amber-50 border border-amber-200 text-amber-800 font-bold px-2 py-0.5 rounded-lg text-[10px]">${p ? p.name : id}${backBtn}</div>`;
             }).join('');
-            if(s.status !== "종료") {
+            
+            if(s.status !== "종료" && isAdminMode) {
                 document.querySelectorAll('.btn-return-queue').forEach(div => {
                     div.onclick = function() { const pId = parseInt(this.getAttribute('data-id')); const nextRest = restList.filter(x => x !== pId); update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch()); };
                 });
@@ -511,25 +512,17 @@ function renderLiveCourtsGrid(s) {
         const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
         const aNamesStr = aNames.join(', '); const bNamesStr = bNames.join(', ');
         
-        // 🎯 [요구 2 복원] 내 이름 매칭 하이라이트 트리거 연산 컴파일
-        const isAmIInTeamA = aNames.includes(myFixedName);
-        const isAmIInTeamB = bNames.includes(myFixedName);
+        const isAmIInTeamA = aNames.includes(myFixedName); const isAmIInTeamB = bNames.includes(myFixedName);
         const isMyMatchMatch = (myFixedName !== "") && (isAmIInTeamA || isAmIInTeamB);
-
         const isLive = m.status === "진행중";
         
-        // 내 경기 하이라이트 테두리가 1순위 상속되도록 분기문 배치
         let mainCardBorder = isLive ? "border-2 border-indigo-500 bg-indigo-50/40 shadow-md" : "border border-slate-200 bg-white";
-        if(isMyMatchMatch) {
-            mainCardBorder = "border-2 border-amber-400 bg-amber-50/60 ring-4 ring-amber-400/10 scale-[1.01] shadow-md";
-        }
+        if(isMyMatchMatch) { mainCardBorder = "border-2 border-amber-400 bg-amber-50/60 ring-4 ring-amber-400/10 scale-[1.01] shadow-md"; }
         
-        const badge = isLive 
-            ? `<span class="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md animate-pulse">⚡ 진행중</span>` 
-            : `<span class="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-indigo-100">⏳ 추천대진 ${idx + 1}순위</span>`;
-        
+        const badge = isLive ? `<span class="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md animate-pulse">⚡ 진행중</span>` : `<span class="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-indigo-100">⏳ 추천대진 ${idx + 1}순위</span>`;
         const myMatchBadge = isMyMatchMatch ? `<span class="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-[9px] px-2 py-0.5 rounded-md animate-bounce shadow-xs">🔥 내 경기 확정!</span>` : '';
 
+        // 종료 권한은 무조건 상시 노출 처리 (수정 제한은 모달에서 가드)
         const ctrlBtn = isLive 
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">🛑 경기 종료</button>` 
             : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer">▶️ 경기시작</button>`;
@@ -551,49 +544,111 @@ function renderLiveCourtsGrid(s) {
 
     document.querySelectorAll('.btn-start-match').forEach(btn => {
         btn.onclick = function() {
-            const mId = this.getAttribute('data-id');
-            const target = currentMatches.find(x => x.id === mId);
-            if(!target) return;
-
-            // 🎯 [요구 3 반영] 관리자이거나 당사자 4명 중 한 명인지 우회 검증 루프 가동
+            const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
             const matchedNames = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             const isUserParticipant = matchedNames.includes(myFixedName);
 
             if(isAdminMode || isUserParticipant) {
-                target.status = "진행중"; 
-                update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: currentMatches });
-            } else {
-                alert("🔒 경기를 시작할 권한이 없습니다! (본인 대진 선수가 아니거나 마스터 관리자가 아닙니다)");
-            }
+                target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: currentMatches });
+            } else { alert("🔒 경기를 가동할 권한이 없습니다! (본인 경기가 아니거나 관리자만 트리거 가능)"); }
         };
     });
-    
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() { openScoreModal(this.getAttribute('data-id')); };
     });
 }
 
+// ==========================================
+// 🛠️ [요구 2 해결] 추천 대진 피탈자 핀포인트 부분 교환 시스템 엔진
+// ==========================================
 function recalculateLiveQueueMatch() {
     const s = window.currentActiveSession; if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
-    let currentMatches = s.currentMatches || []; const attendees = s.attendees || []; const restList = s.restPlayers || []; const historyLog = s.historyLog || [];
-    const maxCourts = s.courts || 2; const lockedMatches = currentMatches.filter(m => m.status === "진행중" || m.status === "완료");
-    let busyIds = new Set(); lockedMatches.forEach(m => { m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); });
+
+    let currentMatches = s.currentMatches || [];
+    const attendees = s.attendees || [];
+    const restList = s.restPlayers || [];
+    const historyLog = s.historyLog || [];
+    const maxCourts = s.courts || 2;
+
+    let busyIds = new Set();
     restList.forEach(id => busyIds.add(id));
 
-    let availableIds = attendees.filter(id => !busyIds.has(id)); let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
-    historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
-    let queue = availableIds.sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
-    let nextMatches = [...lockedMatches]; const targetSlots = maxCourts - nextMatches.length;
+    // 진행중이거나 완료건의 선수들은 명단 풀에서 완전 동결 가드
+    currentMatches.forEach(m => {
+        if (m.status === "진행중" || m.status === "완료") {
+            m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id));
+        }
+    });
 
-    for (let i = 0; i < targetSlots; i++) {
-        if (queue.length >= 4) {
-            const p1 = queue.shift(); const p2 = queue.shift(); const p3 = queue.shift(); const p4 = queue.shift();
-            nextMatches.push({
-                id: `m_${Date.now()}_${i}`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
+    let playCounts = {};
+    attendees.forEach(id => playCounts[id] = 0);
+    historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
+
+    // 1단계: 추천 대기 상태의 카드들 속 이탈자(부상/휴식)가 있는지 검사하여 핀포인트 한자리만 대체 스와핑
+    currentMatches = currentMatches.map(m => {
+        if (m.status !== "대기") return m; // 이미 진행중인 경기는 철통 보호 스킵
+
+        // 팀 내부에 대기열 제외자가 꽂혀있는지 스캔 검사
+        const filterValidIds = (teamIds) => {
+            let nextTeam = [];
+            teamIds.forEach(id => {
+                if (!restList.includes(id) && attendees.includes(id)) {
+                    nextTeam.push(id); // 아직 가용 상태면 잔류 보존
+                } else {
+                    console.log(`🎯 [핀포인트 교체 체인] 제외 유저 발견으로 대진 유지 복식 한 자리를 해체합니다. ID: ${id}`);
+                }
+            });
+            return nextTeam;
+        };
+
+        let cleanA = filterValidIds(m.teamA);
+        let cleanB = filterValidIds(m.teamB);
+
+        // 변동이 생겨 4인 조합에 구멍(빈자리)이 생겼을 때만 우회 교체 엔진 트리거
+        if (cleanA.length < 2 || cleanB.length < 2) {
+            // 임시 제외 타 선수 ID 락
+            let currentComboIds = new Set([...cleanA, ...cleanB]);
+            
+            // 현재 어떤 매치에도 소속되지 않고 쉼터에도 없는 순수 100% 프리 대기열 확보
+            let freeQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id) && !currentComboIds.has(id))
+                                      .sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
+
+            while (cleanA.length < 2 && freeQueue.length > 0) { cleanA.push(freeQueue.shift()); }
+            while (cleanB.length < 2 && freeQueue.length > 0) { cleanB.push(freeQueue.shift()); }
+        }
+
+        return {
+            ...m,
+            teamA: cleanA, teamB: cleanB,
+            teamANames: getNamesFromIds(cleanA), teamBNames: getNamesFromIds(cleanB)
+        };
+    });
+
+    // 2단계: 신규 빈 코트 대진 슬롯 증설 확보 루프
+    const lockedCount = currentMatches.filter(m => m.status === "진행중" || m.status === "완료").length;
+    let finalMatches = [...currentMatches];
+
+    // 기존 꽉 쥐고 있는 전체 점유 ID 수집
+    let totalOccupiedIds = new Set();
+    finalMatches.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => totalOccupiedIds.add(id)); });
+    restList.forEach(id => totalOccupiedIds.add(id));
+
+    let freshQueue = attendees.filter(id => !totalOccupiedIds.has(id) && !restList.includes(id))
+                              .sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
+
+    const extraSlots = maxCourts - finalMatches.length;
+    for (let i = 0; i < extraSlots; i++) {
+        if (freshQueue.length >= 4) {
+            const p1 = freshQueue.shift(); const p2 = freshQueue.shift(); const p3 = freshQueue.shift(); const p4 = freshQueue.shift();
+            finalMatches.push({
+                id: `m_${Date.now()}_slot_${i}`, status: "대기",
+                teamA: [p1, p2], teamB: [p3, p4],
+                teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
             });
         }
     }
-    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: nextMatches });
+
+    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
 }
 
 function renderSessionRankTable(s) {
@@ -621,10 +676,7 @@ function openScoreModal(mId) {
     scoreModalTargetMatchId = mId; const m = window.currentActiveSession.currentMatches.find(x => x.id === mId); if (!m) return;
     document.getElementById('modalTeamANames').innerText = getNamesFromIds(m.teamA, m.teamANames).join(', ');
     document.getElementById('modalTeamBNames').innerText = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
-    
-    // 라디오 초기값 언체크 세척
-    document.getElementById('radioWinA').checked = false;
-    document.getElementById('radioWinB').checked = false;
+    document.getElementById('radioWinA').checked = false; document.getElementById('radioWinB').checked = false;
     document.getElementById('inputScoreA').value = ''; document.getElementById('inputScoreB').value = '';
     document.getElementById('scoreModal').classList.remove('hidden');
 }
@@ -632,26 +684,21 @@ function openScoreModal(mId) {
 if(document.getElementById('btnSubmitMatchScore')) {
     document.getElementById('btnSubmitMatchScore').onclick = function() {
         const selectedWinner = document.querySelector('input[name="winnerSelect"]:checked')?.value;
-        if(!selectedWinner) { alert("🥇 라디오 버튼을 눌러 승리 팀을 반드시 마킹해 주세요!"); return; }
+        if(!selectedWinner) { alert("🥇 라디오 버튼을 체크하여 오늘 매치의 최종 승리 팀을 승인해 주세요!"); return; }
 
-        const sA = parseInt(document.getElementById('inputScoreA').value); 
-        const sB = parseInt(document.getElementById('inputScoreB').value);
-        if (isNaN(sA) || isNaN(sB)) { alert("점수를 입력하세요!"); return; }
+        const sA = parseInt(document.getElementById('inputScoreA').value); const sB = parseInt(document.getElementById('inputScoreB').value);
+        if (isNaN(sA) || isNaN(sB)) { alert("점수를 기입하세요!"); return; }
         if (sA === sB) { alert("무승부 불가!"); return; }
-
-        // 정합성 한 단계 더 검증 (라디오 선택과 점수가 모순되는지 크로스체크)
-        if(selectedWinner === 'A' && sA < sB) { alert("A팀을 승자로 선택했으나 B팀 점수가 더 높습니다. 스코어를 바로잡아 주세요."); return; }
-        if(selectedWinner === 'B' && sB < sA) { alert("B팀을 승자로 선택했으나 A팀 점수가 더 높습니다. 스코어를 바로잡아 주세요."); return; }
+        if(selectedWinner === 'A' && sA < sB) { alert("A팀을 승자로 선택했으나 스코어가 모순됩니다."); return; }
+        if(selectedWinner === 'B' && sB < sA) { alert("B팀을 승자로 선택했으나 스코어가 모순됩니다."); return; }
 
         const s = window.currentActiveSession; let currentMatches = s.currentMatches || []; let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
         const mIdx = currentMatches.findIndex(x => x.id === scoreModalTargetMatchId); if (mIdx === -1) return;
 
         let match = currentMatches[mIdx]; match.scoreA = sA; match.scoreB = sB; match.status = "완료";
-        historyLog.push({ ...match, timestamp: Date.now() }); 
-        currentMatches = currentMatches.filter(x => x.id !== scoreModalTargetMatchId);
+        historyLog.push({ ...match, timestamp: Date.now() }); currentMatches = currentMatches.filter(x => x.id !== scoreModalTargetMatchId);
 
-        const winTeamA = sA > sB;
-        const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
+        const winTeamA = sA > sB; const rA = winTeamA ? 1 : 0; const rB = winTeamA ? 0 : 1;
         let sumA = 0; let sumB = 0;
         match.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
         match.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
@@ -663,12 +710,7 @@ if(document.getElementById('btnSubmitMatchScore')) {
         match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
 
         document.getElementById('scoreModal').classList.add('hidden');
-        
-        // 🎯 [요구 5 반영] 파이어베이스 원격 트랜잭션 업데이트 완료 즉시 0.1초 연쇄 자동 재매칭 호출 가동
-        update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches, historyLog, statsLog }).then(() => { 
-            alert("🏆 경기가 성공적으로 정산 보관되었습니다.");
-            recalculateLiveQueueMatch(); 
-        });
+        update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
     };
 }
 
@@ -684,8 +726,8 @@ function executeLocalRecordSearch(queryName) {
     container.innerHTML = filtered.map(m => {
         const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
         const isMyTeamA = aNames.includes(query); const winA = m.scoreA > m.scoreB; const isAmIWinner = (isMyTeamA && winA) || (!isMyTeamA && !winA);
-        const borderA = winA ? "border-2 border-emerald-400 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
-        const borderB = !winA ? "border-2 border-emerald-400 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
+        const borderA = winA ? "border border-emerald-300 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
+        const borderB = !winA ? "border border-emerald-300 bg-emerald-50/50" : "border border-rose-200 bg-rose-50/50";
         return `
             <div class="bg-white border rounded-xl p-2.5 space-y-2 text-[11px] shadow-3xs">
                 <div class="flex justify-between items-center font-mono text-[10px] text-slate-400"><span>⏱️ 정산 완료 매치</span><span class="font-black ${isAmIWinner ? 'text-emerald-600':'text-rose-500'}">${isAmIWinner ? 'WIN 🏆':'LOSE'}</span></div>
