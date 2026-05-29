@@ -568,130 +568,41 @@ function setupSessionEventListeners() {
 // ==========================================
 // 🏢 대문 통합 연동 초기화 진입로
 // ==========================================
-// ==========================================
-// 🏢 대문 통합 연동 초기화 진입로 (정교화 교정)
-// ==========================================
 window.initDashboardPage = function() {
-    // 1. 역대 정모 리스트 실시간 동기화 바인딩
     const sessionsRef = ref(db, 'sessions');
     onValue(sessionsRef, (snapshot) => {
-        const data = snapshot.val(); 
-        const container = document.getElementById('sessionListContainer'); 
-        const badgeCount = document.getElementById('sessionCountBadge');
-        if (!container) return;
-        
-        if (!data) { 
-            container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">개설된 정모 세션이 전혀 없습니다.</div>`; 
-            if (badgeCount) badgeCount.innerText = "0개 방";
-            return; 
-        }
-        
+        const data = snapshot.val(); const container = document.getElementById('sessionListContainer'); if (!container) return;
+        if (!data) { container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-slate-50 border rounded-xl">개설된 정모 세션이 전혀 없습니다.</div>`; return; }
         const sessionEntries = Object.entries(data).reverse();
-        if (badgeCount) badgeCount.innerText = `${sessionEntries.length}개 방`;
-
-        // 🏆 누적 랭킹 집계를 위해 전체 세션의 통계 데이터를 동시에 통합 연산하는 메커니즘 가동
-        calculateGlobalLeaderboard(data);
-
         container.innerHTML = sessionEntries.map(([id, s]) => {
-            // 정모 상태에 따른 뱃지 스타일 정의
-            let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200"; 
-            if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse"; 
-            if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
-            
-            const deleteButtonHtml = isAdminMode 
-                ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[10px] px-2 py-1 rounded-lg transition shadow-3xs ml-2 cursor-pointer">🗑️ 삭제</button>` 
-                : '';
-            
-            // 날짜 및 목표 스코어 출력 방어 가드
-            const displayDate = s.date ? s.date : id.split('_')[0].replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
-            const displayScore = s.targetScore ? `${s.targetScore}점 제` : "21점 제";
-
-            return `
-                <div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-3xs hover:border-indigo-400 transition-all">
-                    <a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1">
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-black text-slate-900">${s.title}</h3>
-                            <span class="text-[9px] font-black font-sans px-1.5 py-0.5 rounded border ${badgeStyle}">${s.status}</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 font-mono">📅 정모일: ${displayDate} • 🎯 ${displayScore} • 참여: ${s.attendees ? s.attendees.length : 0}명 ${s.isTestMode ? '🤖[AI]' : ''}</p>
-                    </a>
-                    ${deleteButtonHtml}
-                </div>
-            `;
+            let badgeStyle = "bg-amber-50 text-amber-700 border-amber-200"; if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse"; if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
+            const deleteButtonHtml = isAdminMode ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] px-2.5 py-2 rounded-lg transition shadow-2xs ml-3 cursor-pointer">🗑️ 삭제</button>` : '';
+            return `<div class="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-indigo-300 transition-all"><a href="./session.html?id=${id}${isAdminMode ? '&admin=true' : ''}" class="block flex-1 space-y-1"><div class="flex items-center gap-2"><h3 class="text-sm font-black text-slate-900">${s.title}</h3><span class="text-[10px] font-bold font-sans px-1.5 py-0.2 rounded border ${badgeStyle}">${s.status}</span></div><p class="text-[11px] text-slate-400 font-mono">개설코드: ${id} • 참여인원: ${s.attendees ? s.attendees.length : 0}명 / 코트: ${s.courts || 4}개 ${s.isTestMode ? '🤖[시뮬레이션]' : ''}</p></a>${deleteButtonHtml}</div>`;
         }).join('');
-
-        // 관리자용 히든 영역 유기적 스위칭
         const wrapper = document.getElementById('testModeWrapper');
-        if (wrapper) { 
-            if (isAdminMode) { wrapper.style.display = 'flex'; wrapper.classList.remove('hidden'); } 
-            else { wrapper.style.display = 'none'; wrapper.classList.add('hidden'); } 
-        }
-
-        // 삭제 처리 바인딩
+        if (wrapper) { if (isAdminMode) { wrapper.style.display = 'flex'; wrapper.classList.remove('hidden'); } else { wrapper.style.display = 'none'; wrapper.classList.add('hidden'); } }
         document.querySelectorAll('.btn-delete-session').forEach(btn => {
-            btn.onclick = function(e) { 
-                e.preventDefault(); 
-                const sid = this.getAttribute('data-id'); 
-                if (confirm(`정말 해당 정모방(${sid})을 폐쇄 및 삭제하시겠습니까?`)) { 
-                    remove(ref(db, `sessions/${sid}`)).then(() => { if(window.initDashboardPage) window.initDashboardPage(); }); 
-                } 
-            };
+            btn.onclick = function(e) { e.preventDefault(); const sid = this.getAttribute('data-id'); if (confirm(`정말 해당 정모방(${sid})을 삭제하시겠습니까?`)) { remove(ref(db, `sessions/${sid}`)).then(() => { if(window.initDashboardPage) window.initDashboardPage(); }); } };
         });
     });
-
-    // 2. 정모 생성 폼 바인딩 (목표 승리 점수 라디오 데이터 수집)
     const form = document.getElementById('createSessionForm');
     if (form) {
         form.onsubmit = function(e) {
-            e.preventDefault(); 
-            const title = document.getElementById('newSessionTitle').value.trim(); 
-            const dateVal = document.getElementById('newSessionDate').value;
-            const scoreVal = parseInt(document.querySelector('input[name="targetScore"]:checked').value);
-            const checkboxTestMode = document.getElementById('checkboxTestMode'); 
-            const isTestModeChecked = checkboxTestMode ? checkboxTestMode.checked : false; 
-            
-            const now = new Date(); 
-            const timeKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-            
-            set(ref(db, `sessions/${timeKey}`), { 
-                status: "예정", 
-                title: title, 
-                date: dateVal,
-                targetScore: scoreVal,
-                courts: 2, 
-                isTestMode: isTestModeChecked, 
-                createdAt: Date.now() 
-            }).then(() => { 
-                alert(`🎉 [${title} (${scoreVal}점제)] 정모방이 정상 개설되었습니다!`); 
-                document.getElementById('newSessionTitle').value = ''; 
-                if (checkboxTestMode) checkboxTestMode.checked = false; 
-            });
+            e.preventDefault(); const title = document.getElementById('newSessionTitle').value.trim(); const checkboxTestMode = document.getElementById('checkboxTestMode'); const isTestModeChecked = checkboxTestMode ? checkboxTestMode.checked : false; const now = new Date(); const timeKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            set(ref(db, `sessions/${timeKey}`), { status: "예정", title: title, courts: 4, isTestMode: isTestModeChecked, createdAt: Date.now() }).then(() => { alert(`🎉 [${title}] 정모방이 정상 개설되었습니다!`); document.getElementById('newSessionTitle').value = ''; if (checkboxTestMode) checkboxTestMode.checked = false; });
         };
-    };
-
-    // 3. 패스워드 마스터 토글 스위치
+    }
     const toggleBtn = document.getElementById('btnAdminToggle');
     if (toggleBtn) {
         toggleBtn.onclick = function() {
             const wrapper = document.getElementById('testModeWrapper');
             if (!isAdminMode) {
                 const pw = prompt("🔐 관리자 마스터 비밀번호를 입력하세요:");
-                if (pw === "1234") {
-                    isAdminMode = true; 
-                    this.innerText = "🔓 관리자 모드 인증 해제"; 
-                    this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5"; 
-                    alert("🔓 관리자 모드 활성화! 정모 생성 제어반이 잠금 해제되었습니다."); 
-                    if (wrapper) { wrapper.style.display = 'flex'; wrapper.classList.remove('hidden'); } 
-                    if(window.initDashboardPage) window.initDashboardPage();
-                } else {
-                    alert("❌ 비밀번호가 틀렸습니다!");
+                if (pw === MASTER_PASSWORD) {
+                    isAdminMode = true; this.innerText = "🔓 관리자 모드 해제"; this.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm cursor-pointer mr-2 flex items-center gap-1"; alert("🔓 관리자 인증 성공!"); if (wrapper) { wrapper.style.display = 'flex'; wrapper.classList.remove('hidden'); } if(window.initDashboardPage) window.initDashboardPage();
                 }
             } else {
-                isAdminMode = false; 
-                this.innerText = "🔐 마스터 관리자 인증"; 
-                this.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5"; 
-                if (wrapper) { wrapper.style.display = 'none'; wrapper.classList.add('hidden'); } 
-                if(window.initDashboardPage) window.initDashboardPage();
+                isAdminMode = false; this.innerText = "🔐 관리자 모드 인증"; this.className = "bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-2xs cursor-pointer mr-2 flex items-center gap-1"; if (wrapper) { wrapper.style.display = 'none'; wrapper.classList.add('hidden'); } if(window.initDashboardPage) window.initDashboardPage();
             }
         };
     }
@@ -699,67 +610,6 @@ window.initDashboardPage = function() {
     const btnGlobalSrc = document.getElementById('btnGlobalSearchRecord');
     if (btnGlobalSrc) { btnGlobalSrc.onclick = () => { executeGlobalRecordSearch(); }; }
 };
-
-// ==========================================
-// 🏆 [완전 자동 계산] 통합 랭킹보드 연산 엔진 엔진 바인딩
-// ==========================================
-function calculateGlobalLeaderboard(allSessions) {
-    const tbody = document.getElementById('globalRankTableBody');
-    if (!tbody) return;
-
-    // 실시간 역대 누적 맵 구조 초기화
-    let aggregateMap = {};
-
-    // 1단계: 마스터 선수 정보 초기 명단 기반 바인딩 가동
-    allSystemPlayers.forEach(p => {
-        aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr, win: 0, lose: 0, deltaSum: 0 };
-    });
-
-    // 2단계: 전 세션을 훑으며 판정 마감된 스탯로그 수집 합산
-    Object.values(allSessions).forEach(s => {
-        if (s.statsLog) {
-            Object.entries(s.statsLog).forEach(([pId, log]) => {
-                if (aggregateMap[pId]) {
-                    aggregateMap[pId].win += (log.win || 0);
-                    aggregateMap[pId].lose += (log.lose || 0);
-                    aggregateMap[pId].deltaSum += (log.delta || 0);
-                }
-            });
-        }
-    });
-
-    // 3단계: 가공 배열 정렬 처리 (정렬 기준 = 기초 MMR + 정모 누적 점수 변화량)
-    let sortedList = Object.values(aggregateMap);
-    sortedList.sort((a, b) => (b.baseMmr + b.deltaSum) - (a.baseMmr + a.deltaSum));
-
-    if (sortedList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">명단이 존재하지 않습니다.</td></tr>`;
-        return;
-    }
-
-    // 4단계: 랭킹 테이블 렌더링
-    tbody.innerHTML = sortedList.map((p, idx) => {
-        const totalPlayed = p.win + p.lose;
-        const winRate = totalPlayed > 0 ? Math.round((p.win / totalPlayed) * 100) : 0;
-        const finalCalculatedMmr = p.baseMmr + p.deltaSum;
-
-        // 오늘 폼이 가장 뜨겁거나 레이팅 최고 존엄 리더에게만 활성화되는 불꽃 스태킹 시각 효과
-        const isFireLeader = idx === 0 && totalPlayed > 0;
-        const rowHighlightClass = isFireLeader ? "fire-rank-card bg-amber-50/40" : "hover:bg-slate-50/50";
-        const fireBadge = isFireLeader ? `<span class="bg-red-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded ml-1 animate-pulse">🔥 최고존엄</span>` : '';
-
-        return `
-            <tr class="transition-colors ${rowHighlightClass}">
-                <td class="py-2.5 px-4 text-center font-black text-slate-400 font-mono">${idx + 1}</td>
-                <td class="py-2.5 px-4 font-black text-slate-900">${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.tier}조)</span>${fireBadge}</td>
-                <td class="py-2.5 px-4 text-center font-mono text-slate-500">${totalPlayed}판</td>
-                <td class="py-2.5 px-4 text-center font-mono font-medium text-slate-600">${p.win}승 ${p.lose}패</td>
-                <td class="py-2.5 px-4 text-center font-mono font-extrabold text-indigo-600">${winRate}%</td>
-                <td class="py-2.5 px-4 text-right font-black font-mono text-slate-900">${finalCalculatedMmr}점</td>
-            </tr>
-        `;
-    }).join('');
-}
 
 window.initSessionPage = function() {
     const urlParams = new URLSearchParams(window.location.search); targetSessionId = urlParams.get('id'); isSessionAdminMode = urlParams.get('admin') === 'true';
