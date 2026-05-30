@@ -1162,20 +1162,19 @@ if (document.readyState === "loading") { document.addEventListener("DOMContentLo
 else { bootAppEngine(); }
 
 // =========================================================================
-// 🤖 [SUPER AI UPDATE] 실제 명단 기반 ELO 승률 예측 및 빈 코트 연산 매크로 엔진
+// 🤖 [순정 엔진 다이렉트 링크] 실제 대진 로직(5대 코어)을 그대로 가져다 쓰는 마스터 시뮬레이터
 // =========================================================================
 function runLiveDatabaseSimulationLoop() {
     let loopCount = 0;
-    const maxLoops = 30; 
-    let emptyCourtHoldCount = 0; // 🎯 코트가 비어서 홀딩된 횟수 카운터 추가
+    const maxLoops = 30; // 총 30경기 연속 컴파일 목표
+    let emptyCourtHoldCount = 0; // 코트 공백 홀딩 카운터
 
     function triggerNextAutoMatchAndSettlement() {
         if (loopCount >= maxLoops) {
-            // 📊 종료 리포트에 코트 공백 홀딩 통계 인쇄
             console.log(`\n====================================================`);
-            console.log(`⚙️ [시뮬레이션 정밀 진단]: 총 30경기 중 대진 조건 불일치로 코트가 비어있던 대기 발생 연산 횟수: ${emptyCourtHoldCount}회`);
+            console.log(`⚙️ [순정 엔진 진단]: 총 30경기 중 대진 조건 불일치로 코트가 비어있던 대기 발생 횟수: ${emptyCourtHoldCount}회`);
             console.log(`====================================================\n`);
-            alert(`🏁 [라이브 시뮬레이션 종료] 총 ${maxLoops}경기의 실전 데이터 컴파일 완료!\n\n(코트 공백 대기 발생: ${emptyCourtHoldCount}회 -> 콘솔 확인 가능)`);
+            alert(`🏁 [라이브 시뮬레이션 종료] 실제 대진 로직 기반 ${maxLoops}경기 컴파일 완료!\n\n(코트 공백 대기 발생: ${emptyCourtHoldCount}회 -> 콘솔 확인)`);
             return;
         }
 
@@ -1184,25 +1183,30 @@ function runLiveDatabaseSimulationLoop() {
             if (!snapshot.exists()) return;
             const s = snapshot.val();
             const currentMatches = s.currentMatches || [];
-            
-            // 🎯 [목표 스코어 동적 가져오기]: 정모 방 설정 값(21점, 25점 등)을 실시간 바인딩 (기본값 25)
             const dynamicTargetScore = parseInt(s.targetScore) || 25;
 
+            // 1. 🎯 [진짜 대진 엔진 직접 호출]: 껍데기 로직 안 쓰고, app.js의 실제 recalculateLiveQueueMatch를 강제 구동!
+            // 코트에 자리가 비어있다면 진짜 엔진을 실행시켜 파이어베이스에 대진 카드를 생성하도록 만듭니다.
             if (currentMatches.filter(m => m.status !== "완료").length < (s.courts || 2)) {
                 if (typeof recalculateLiveQueueMatch === "function") {
                     recalculateLiveQueueMatch();
                 }
-                setTimeout(triggerNextAutoMatchAndSettlement, 500);
+                // 실제 엔진이 파이어베이스 DB를 갱신하고 내려오는 물리적 시간 유예 (0.6초)
+                setTimeout(triggerNextAutoMatchAndSettlement, 600);
                 return;
             }
 
+            // 2. 진짜 엔진이 조건에 맞춰서 생성해 준 라이브 대진 카드를 선점합니다.
             const targetMatch = currentMatches.find(m => m.status !== "완료");
+            
+            // ⚠️ 만약 진짜 엔진이 "±4등 슬라이딩 윈도우" 조건에 안 맞아서 대진을 안 짜주고 홀딩시켰다면?
             if (!targetMatch) {
-                emptyCourtHoldCount++; // 대진이 바로 안 짜지고 홀딩되어 코트가 빈 시간 누적
-                setTimeout(triggerNextAutoMatchAndSettlement, 1000);
+                emptyCourtHoldCount++; // 코트 공백 시간 누적
+                setTimeout(triggerNextAutoMatchAndSettlement, 1000); // 라이벌이 나올 때까지 1초 대기 후 재순환
                 return;
             }
 
+            // 3. 🧠 [승률 예측]: 진짜 엔진이 엄선해 준 4인의 displayMmr 점수를 추적해 ELO 승률 정밀 계산
             const teamAPlayers = targetMatch.teamA.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
             const teamBPlayers = targetMatch.teamB.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
             
@@ -1211,20 +1215,19 @@ function runLiveDatabaseSimulationLoop() {
 
             const mmrDiff = avgMmrB - avgMmrA;
             const expectedProbabilityA = 1 / (1 + Math.pow(10, (mmrDiff / 400)));
-            const expectedProbabilityB = 1 - expectedProbabilityA;
 
             const winRateA = Math.round(expectedProbabilityA * 100);
             const winRateB = 100 - winRateA;
 
             loopCount++;
-            console.log(`\n🔥 [🤖 AI 라이브 예측 제 ${loopCount}경기 (목표: ${dynamicTargetScore}점제)]`);
+            console.log(`\n🔥 [🤖 실제 로직 대진 검증 제 ${loopCount}경기 (${dynamicTargetScore}점제)]`);
             console.log(`🆚 TEAM A [${targetMatch.teamANames.join(', ')}] (평균 MMR: ${Math.round(avgMmrA)}점) -> 승리 확률: ${winRateA}%`);
             console.log(`🆚 TEAM B [${targetMatch.teamBNames.join(', ')}] (평균 MMR: ${Math.round(avgMmrB)}점) -> 승리 확률: ${winRateB}%`);
 
+            // 4. 난수 스코어 생성 (실제 방 설정 점수인 dynamicTargetScore 연동)
             const dice = Math.random();
             let finalScoreA, finalScoreB;
             
-            // 🎯 설정된 목표 점수(dynamicTargetScore)를 기반으로 스코어보드 생성 보정
             if (dice < expectedProbabilityA) {
                 finalScoreA = dynamicTargetScore;
                 finalScoreB = Math.floor(Math.random() * 6) + (dynamicTargetScore - 8); 
@@ -1237,6 +1240,7 @@ function runLiveDatabaseSimulationLoop() {
 
             console.log(`🏁 [경기 마감 결과] -> 스코어 ${finalScoreA} : ${finalScoreB} (${finalScoreA > finalScoreB ? 'TEAM A 승리' : 'TEAM B 승리'})`);
 
+            // 5. 완료 데이터 세팅
             targetMatch.status = "완료";
             targetMatch.scoreA = finalScoreA;
             targetMatch.scoreB = finalScoreB;
@@ -1247,6 +1251,7 @@ function runLiveDatabaseSimulationLoop() {
 
             const nextMatches = currentMatches.filter(x => x.id !== targetMatch.id);
 
+            // 6. 데이터베이스에 최종 동기화 전송
             update(sessionRef, {
                 currentMatches: nextMatches,
                 historyLog: historyLog
