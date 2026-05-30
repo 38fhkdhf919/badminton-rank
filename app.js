@@ -564,15 +564,15 @@ function renderAttendanceBox(s) {
 if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (관람 모드 차단 및 대기조 네온사인 패치 완결)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (관람 모드 버튼 노출 버그 완전 박멸판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
     
-    // 👤 현재 '일반 관람 모드' 상태인지 검사 (이름이 없거나 비어있는 경우 포함)
-    const isObserverMode = (myFixedName === "");
+    // 👤 [버그 수정 코어]: 공백이거나 드롭다운 가이드 텍스트 문구 자체일 때를 완벽하게 정밀 필터링
+    const isObserverMode = (myFixedName === "" || myFixedName === "-- 일반 관람 모드 --");
 
     if (window.liveMatchTimerInterval) { clearInterval(window.liveMatchTimerInterval); window.liveMatchTimerInterval = null; }
 
@@ -621,14 +621,12 @@ function renderLiveCourtsGrid(s) {
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
-        // 🎯 [요구사항 반영] 카드 스킨 빌드 규칙: 
-        // 진행 중이면 인디고 스킨, 대기 중이거나 내 경기라면 무조건 반짝이는 네온사인 효과(`my-neon-match-card`) 바인딩
         let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "my-neon-match-card bg-amber-50/20";
         if (isMyMatch) { cardBg = "my-neon-match-card bg-amber-50/40 scale-[1.01] border-amber-400"; }
 
-        // 🎯 [요구사항 반영] 버튼 표출 제어: 일반 관람 모드이거나 마스터 관리자가 아니라면 제어 단추 전면 삭제
+        // 🎯 [우선순위 역전 보정]: 관리자 모드가 켜져 있어도 일반 관람 모드를 선택했다면 제어 단추를 절대 표시하지 않음
         let ctrlBtn = '';
-        if (!isObserverMode || window.isAdminMode) {
+        if (!isObserverMode) {
             ctrlBtn = isLive 
                 ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
                 : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
@@ -647,7 +645,6 @@ function renderLiveCourtsGrid(s) {
                     <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
                 </div>`;
         } else {
-            // 아직 시작하지 않은 대진일 때 '입장해주세요' 문구를 노란색 점멸 배지로 우측 상단에 강제 고정
             statusBadge = `
                 <div class="flex items-center justify-between w-full">
                     <span class="text-[11px] font-black font-sans text-amber-600">⏳ 추천대진 ${idx + 1}순위 ${isMyMatch ? '🔥 내 경기!':''}</span>
