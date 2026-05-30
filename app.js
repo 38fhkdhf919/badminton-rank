@@ -47,7 +47,8 @@ onValue(ref(db, 'players'), (snapshot) => {
 
 function getNamesFromIds(ids, fallbackNames) {
     if (fallbackNames && fallbackNames.length > 0) return fallbackNames.filter(Boolean);
-    if (!ids || ids.length === 0) return ["대기회원"];
+    // 🎯 회원들에게 직관적인 시스템 대기 상태 메시지로 변경
+    if (!ids || ids.length === 0) return ["상대 팀 탐색 중..."]; 
     return ids.map(id => {
         const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
         return p ? p.name : `회원(${id})`;
@@ -646,7 +647,6 @@ function renderLiveCourtsGrid(s) {
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
     
-    // 👤 현재 '일반 관람 모드' 상태인지 검사
     const isObserverMode = (myFixedName === "" || myFixedName === "-- 일반 관람 모드 --");
 
     if (window.liveMatchTimerInterval) { clearInterval(window.liveMatchTimerInterval); window.liveMatchTimerInterval = null; }
@@ -688,6 +688,9 @@ function renderLiveCourtsGrid(s) {
         const aNamesStr = aNames.join(', '); 
         const bNamesStr = bNames.join(', ');
         
+        // 🎯 [홀딩방 유무 판별 가드] B팀이 비어있는 홀딩 상태인지 체크
+        const isHoldingMode = !m.teamB || m.teamB.length === 0;
+        
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
         const cleanMyName = myFixedName.split('(')[0].trim();
         
@@ -699,6 +702,9 @@ function renderLiveCourtsGrid(s) {
         let cardBg = "";
         if (isLive) {
             cardBg = "border border-indigo-400 bg-indigo-50/40 shadow-md";
+        } else if (isHoldingMode) {
+            // 🎯 홀딩방은 차분한 슬레이트 점선 테두리 스타일로 시각적 격리
+            cardBg = "border border-dashed border-slate-300 bg-slate-50/50";
         } else {
             if (isObserverMode || isMyMatch) {
                 cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01] border-amber-400";
@@ -708,13 +714,13 @@ function renderLiveCourtsGrid(s) {
         }
 
         let ctrlBtn = '';
-        if (isMyMatch || window.isAdminMode) {
+        if (!isHoldingMode && (isMyMatch || window.isAdminMode)) {
             ctrlBtn = isLive 
                 ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
                 : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         }
         
-        const aiBtn = (window.isAdminMode && isLive && s.isTestMode) 
+        const aiBtn = (!isHoldingMode && window.isAdminMode && isLive && s.isTestMode) 
             ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` 
             : '';
 
@@ -725,6 +731,13 @@ function renderLiveCourtsGrid(s) {
                     <span class="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse-red"></span>
                     <span class="mr-1">⚡ 진행중</span>
                     <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
+                </div>`;
+        } else if (isHoldingMode) {
+            // 🎯 대기실 전용 배지 텍스트 안내 보정
+            statusBadge = `
+                <div class="flex items-center justify-between w-full">
+                    <span class="text-[11px] font-black font-sans text-slate-500">⏳ 밸런스 매칭 대기 중</span>
+                    <span class="text-[10px] font-bold bg-slate-400 text-white px-2 py-0.5 rounded-lg">동등 실력 라이벌 탐색 중...</span>
                 </div>`;
         } else {
             statusBadge = `
@@ -742,8 +755,14 @@ function renderLiveCourtsGrid(s) {
                 </div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
                     <div class="col-span-3 bg-slate-50 border border-slate-200/60 p-2 rounded-xl truncate">${aNamesStr}</div>
-                    <div class="col-span-1 text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 bg-slate-50 border border-slate-200/60 p-2 rounded-xl truncate">${bNamesStr}</div>
+                    
+                    <!-- 🎯 홀딩 모드일 때는 대칭 구조가 아니므로 VS 대신 화살표 아이콘이나 탐색 아이콘 처리 -->
+                    <div class="col-span-1 text-slate-300 font-mono">${isHoldingMode ? '🔍' : 'VS'}</div>
+                    
+                    <!-- 🎯 홀딩 모드일 때는 B팀 영역 레이아웃을 블러/연하게 처리하여 대기 상태 강조 -->
+                    <div class="col-span-3 ${isHoldingMode ? 'bg-slate-100/70 text-slate-400 font-medium italic border border-dashed border-slate-200' : 'bg-slate-50 border border-slate-200/60 font-black text-slate-800'} p-2 rounded-xl truncate">
+                        ${bNamesStr}
+                    </div>
                 </div>
             </div>`;
     }).join('');
@@ -776,7 +795,6 @@ function renderLiveCourtsGrid(s) {
         }
     }
 
-    // 1. 경기 시작 버튼 리스너
     document.querySelectorAll('.btn-start-match').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
@@ -790,7 +808,6 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 2. 경기 종료 버튼 리스너
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
@@ -801,18 +818,15 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 🎯 [완벽 해결]: 유령 함수 대신 진짜 순정 엔진인 handleAiSimulatedMatchCalculation을 직접 연결합니다.
     document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id');
-            // 가짜 경고창 가드를 원천 폐기하고 진짜 AI 정산 함수로 토스합니다.
             if (typeof handleAiSimulatedMatchCalculation === "function") {
                 handleAiSimulatedMatchCalculation(mId);
             }
         };
     });
 
-    // (renderLiveCourtsGrid 함수 맨 아래쪽 분기문 근처에 추가)
     const btnFullSim = document.getElementById('btnLiveFullSimulation');
     if (btnFullSim) {
         if (window.isAdminMode && s.isTestMode) {
