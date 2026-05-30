@@ -15,6 +15,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// 성적표 기본 정렬 상태 변수 (MMR_DESC: MMR 높은순, MMR_ASC: MMR 낮은순, DELTA_DESC: 등락 높은순, DELTA_ASC: 등락 낮은순)
+window.currentSortMode = "MMR_DESC";
+
 window.isAdminMode = localStorage.getItem("badminton_admin_login") === "true";
 window.currentActiveSession = null;
 window.currentSessionKey = null;
@@ -243,7 +246,6 @@ window.initSessionPage = function() {
     const wrapper = document.getElementById('adminButtonWrapper');
     
     if (btnToggle && wrapper) {
-        // [인증 동기화 인터페이스 링 부팅 리액션]
         if (window.isAdminMode) {
             btnToggle.innerText = "🔓 관리자 인증 해제";
             btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1";
@@ -256,7 +258,6 @@ window.initSessionPage = function() {
             wrapper.style.marginTop = "0px";
         }
 
-        // 🎯 알림창 원천 제거 및 타이틀 5연타 가변 컨테이너 바인딩 보정
         let clickCount = 0; 
         let lastTime = 0;
         
@@ -330,7 +331,7 @@ window.initSessionPage = function() {
         const liveStatsWrapper = document.getElementById('liveStatsActiveWrapper');
         if(s.status === "예정") {
             if(beforeStatsBox) beforeStatsBox.style.display = 'block';
-            if(liveStatsWrapper) liveStatsWrapper.style.display = 'none';
+            if(liveStatsWrapper) { liveStatsWrapper.style.display = 'none'; }
         } else {
             if(beforeStatsBox) beforeStatsBox.style.display = 'none';
             if(liveStatsWrapper) { liveStatsWrapper.style.display = 'flex'; liveStatsWrapper.classList.remove('hidden'); }
@@ -352,6 +353,28 @@ window.initSessionPage = function() {
         renderLiveCourtsGrid(s);
         renderSessionRankTable(s);
         
+        // 🎯 [실시간 정렬 동적 바인딩 스위치 인터페이스 설계]
+        // 성적표 헤더나 테이블의 레이블 부모 요소를 타겟팅하여 원터치 토글 인터페이스를 장착합니다.
+        setTimeout(() => {
+            const targetHeader = document.querySelector('#sessionLiveRankTableBody')?.parentElement?.querySelector('thead');
+            if (targetHeader && !targetHeader.hasAttribute('data-sort-bound')) {
+                targetHeader.setAttribute('data-sort-bound', 'true');
+                targetHeader.style.cursor = 'pointer';
+                targetHeader.title = '클릭 시 [MMR 정렬 ↔ 등락 점수 정렬] 스위칭';
+                
+                targetHeader.onclick = function() {
+                    // 순환 토글: MMR 높은순 -> 낮은순 -> 등락 높은순 -> 등락 낮은순 순환
+                    if (window.currentSortMode === "MMR_DESC") window.currentSortMode = "MMR_ASC";
+                    else if (window.currentSortMode === "MMR_ASC") window.currentSortMode = "DELTA_DESC";
+                    else if (window.currentSortMode === "DELTA_DESC") window.currentSortMode = "DELTA_ASC";
+                    else window.currentSortMode = "MMR_DESC";
+                    
+                    console.log(`🎯 성적표 필터 변경 완료: ${window.currentSortMode}`);
+                    renderSessionRankTable(window.currentActiveSession);
+                };
+            }
+        }, 500);
+        
         const searchInput = document.getElementById('inputLocalSearchPlayer');
         if(searchInput) {
             if(!searchInput.value) searchInput.value = localStorage.getItem("my_badminton_name") || "";
@@ -360,7 +383,6 @@ window.initSessionPage = function() {
         }
     });
 
-    // 🎯 원터치형 [승리] 버튼 스코어 주입 기믹 활성화
     setTimeout(() => {
         const btnWinA = document.getElementById('btnWinASelector');
         const btnWinB = document.getElementById('btnWinBSelector');
@@ -1153,12 +1175,11 @@ function renderSessionRankTable(s) {
     if (!tbody || window.allSystemPlayers.length === 0) return;
     
     const attendees = s.attendees || [];
-    const statsLog = s.statsLog || {}; // 각 유저별 누적 승패 저장소
+    const statsLog = s.statsLog || {}; 
 
-    // 🎯 [버그 프리 핵심 변경]: statsLog가 비어있어도 현재 참석자(attendees) 기준으로 기본 베이스 라인을 강제 형성합니다.
     let list = attendees.map(id => {
         const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
-        const log = statsLog[id] || {}; // 해당 유저의 전적 기록이 없으면 빈 객체 처리
+        const log = statsLog[id] || {}; 
         return {
             name: p ? p.name : `회원(${id})`,
             baseMmr: p ? p.displayMmr : 1000,
@@ -1168,7 +1189,6 @@ function renderSessionRankTable(s) {
         };
     });
 
-    // 만약 출석부(attendees)도 비어있고 statsLog만 있다면 statsLog 기반으로 백업 전환
     if (list.length === 0) {
         list = Object.entries(statsLog).map(([id, log]) => {
             const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
@@ -1182,10 +1202,21 @@ function renderSessionRankTable(s) {
         });
     }
 
-    // 실시간 총합 레이팅(현재 MMR + 등락차) 높은 순 정렬
-    list.sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
+    // 🎯 [정렬 옵션 분기 처리 Core]
+    if (window.currentSortMode === "MMR_DESC") {
+        // MMR 높은순 (기본값)
+        list.sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
+    } else if (window.currentSortMode === "MMR_ASC") {
+        // MMR 낮은순
+        list.sort((a, b) => (a.baseMmr + a.delta) - (b.baseMmr + b.delta));
+    } else if (window.currentSortMode === "DELTA_DESC") {
+        // 오늘의 등락 점수 높은순
+        list.sort((a, b) => b.delta - a.delta);
+    } else if (window.currentSortMode === "DELTA_ASC") {
+        // 오늘의 등락 점수 낮은순
+        list.sort((a, b) => a.delta - b.delta);
+    }
 
-    // 2. HTML 화면에 출력 바인딩
     if (list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-xs text-slate-400 italic">현재 출석하거나 경기한 회원이 없어 성적표가 비어있습니다.</td></tr>`;
         return;
@@ -1198,7 +1229,7 @@ function renderSessionRankTable(s) {
         
         const deltaColor = p.delta >= 0 ? 'text-emerald-600' : 'text-rose-600';
         const deltaText = p.delta > 0 ? `(+${p.delta})` : (p.delta < 0 ? `(${p.delta})` : `(0)`);
-        const isHot = idx === 0 && p.win > 0;
+        const isHot = window.currentSortMode === "MMR_DESC" && idx === 0 && p.win > 0;
 
         return `
             <tr class="${isHot ? 'bg-amber-50/40 text-red-500 font-bold' : ''}">
