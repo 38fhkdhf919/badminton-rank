@@ -28,6 +28,12 @@
             animation: neon-pulse 2.2s infinite ease-in-out; 
             border-width: 2.5px !important;
         }
+        /* 🎯 [신규 기믹]: 검색 시 실시간 성적표에서 해당 유저 행을 부드럽게 깜빡이며 강조하는 효과 */
+        @keyframes row-glow {
+            0%, 100% { background-color: rgba(251, 191, 36, 0.1); box-shadow: inset 0 0 4px rgba(251, 191, 36, 0.2); }
+            50% { background-color: rgba(251, 191, 36, 0.4); box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.5); font-weight: 900; }
+        }
+        .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
