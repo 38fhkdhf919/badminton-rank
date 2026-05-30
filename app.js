@@ -559,7 +559,7 @@ function renderLiveCourtsGrid(s) {
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
             : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">▶ 경기시작</button>`;
         
-        const aiBtn = (isLive && isTestMode && isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` : '';
+        const aiBtn = (isLive && isTestMode && window.isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` : '';
 
         return `
             <div class="rounded-2xl p-4 border transition-all space-y-3.5 ${cardBg}">
@@ -580,13 +580,32 @@ function renderLiveCourtsGrid(s) {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
-            if(isAdminMode || names.includes(myFixedName)) {
+            if(window.isAdminMode || names.includes(myFixedName)) {
                 target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
     });
-    document.querySelectorAll('.btn-open-score').forEach(btn => { btn.onclick = function() { openScoreModal(this.getAttribute('data-id')); }; });
-    document.querySelectorAll('.btn-ai-simulate').forEach(btn => { btn.onclick = function() { handleAiSimulatedMatchCalculation(this.getAttribute('data-id')); }; });
+
+    // 🎯 [요구사항 가드 적용]: 경기 종료 버튼을 터치하자마자 권한을 즉시 핀포인트 판정 차단
+    document.querySelectorAll('.btn-open-score').forEach(btn => {
+        btn.onclick = function() {
+            const mId = this.getAttribute('data-id'); 
+            const target = currentMatches.find(x => x.id === mId); 
+            if(!target) return;
+            
+            const targetMatchNames = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
+            
+            if (window.isAdminMode || targetMatchNames.includes(myFixedName)) {
+                openScoreModal(mId); 
+            } else {
+                alert("🔒 해당 경기의 출전 선수 4인 또는 마스터 관리자만 [경기 종료] 및 스코어 입력 권한이 있습니다!");
+            }
+        };
+    });
+
+    document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
+        btn.onclick = function() { handleAiSimulatedMatchCalculation(this.getAttribute('data-id')); };
+    });
 }
 
 function handleAiSimulatedMatchCalculation(mId) {
