@@ -887,12 +887,15 @@ function recalculateLiveQueueMatch() {
     let currentMatches = s.currentMatches || []; const attendees = s.attendees || []; const restList = s.restPlayers || []; const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
+    // 1. 바쁜 사람(현재 경기중, 대기열 선점자, 쉼터 인원) 싹 모아서 세팅
     let busyIds = new Set(); restList.forEach(id => busyIds.add(id));
     currentMatches.forEach(m => { if (m.status === "진행중" || m.status === "완료") { m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); } });
 
+    // 2. 오늘 개인별 소화한 경기수 카운팅
     let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
 
+    // 3. 기존 대기조 구멍 난 구역 땜빵 리빌딩
     currentMatches = currentMatches.map(m => {
         if (m.status !== "대기") return m;
         let cleanA = m.teamA.filter(id => !restList.includes(id) && attendees.includes(id));
@@ -909,14 +912,63 @@ function recalculateLiveQueueMatch() {
     let finalMatches = [];
     currentMatches.forEach(m => { finalMatches.push(m); m.teamA.forEach(id => busyIds.add(id)); m.teamB.forEach(id => busyIds.add(id)); });
 
+    // 🎯 4단계 : 실력 등급 단계 기반 상하한선 필터링 및 팽팽한 대진 조립 코어
     const extraSlots = maxCourts - finalMatches.length;
     for (let i = 0; i < extraSlots; i++) {
-        let freshQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id)).sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
+        // 지금 당장 코트 입장 가능한 대기열 생성 (경기수 적은 사람 순서대로 줄 세우기)
+        let freshQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id))
+                                   .sort((a, b) => (playCounts[a] || 0) - (playCounts[b] || 0));
+        
         if (freshQueue.length >= 4) {
-            const p1 = freshQueue.shift(); const p2 = freshQueue.shift(); const p3 = freshQueue.shift(); const p4 = freshQueue.shift();
-            finalMatches.push({
-                id: `m_${Date.now()}_slot_${i}`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
+            // 1. 기준점이 될 앵커(대기열 맨 앞의 가장 억울한 유저) 선점
+            const anchorId = freshQueue[0];
+            const anchorPlayer = window.allSystemPlayers.find(x => x.id === anchorId);
+            if (!anchorPlayer) continue;
+
+            // 🧠 [등급 서열화 알고리즘]: 동점자 쏠림 장벽을 깨기 위해, 전체 시스템 유저의 displayMmr 중 유니크한 점수만 추출하여 내림차순 정렬
+            const uniqueMmrLevels = [...new Set(window.allSystemPlayers.map(x => x.displayMmr))].sort((a, b) => b - a);
+            
+            // 앵커 유저의 실제 실력 등급(Level) 인덱스 추적 (예: 1200점은 0등급, 1100점은 1등급...)
+            const anchorLevelIdx = uniqueMmrLevels.indexOf(anchorPlayer.displayMmr);
+
+            // 윈도우 상하한선 가드 범위 설정: 기준 등급으로부터 위아래 딱 1단계(또는 최대 2단계) 격차까지만 허용
+            const maxAllowedLevelDiff = 1; 
+
+            // 2. 앵커 유저의 실력 등급 가드 영역을 통과한 "진짜 라이벌 후보군" 필터링
+            let matchedCandidates = freshQueue.filter(id => {
+                const p = window.allSystemPlayers.find(x => x.id === id);
+                if (!p) return false;
+                const pLevelIdx = uniqueMmrLevels.indexOf(p.displayMmr);
+                // 점수 등급의 칸수 차이가 허용 범위(1단계) 이내인 사람만 합격
+                return Math.abs(anchorLevelIdx - pLevelIdx) <= maxAllowedLevelDiff;
             });
+
+            // 만약 윈도우 제한으로 인해 4명이 안 모이면, 코트를 억지로 열지 않고 비워둠 (홀딩 처리)
+            if (matchedCandidates.length < 4) {
+                continue; 
+            }
+
+            // 3. 후보군 중 경기수가 가장 적은 최종 4인 엄선 완료
+            const final4Ids = matchedCandidates.slice(0, 4);
+            const final4Players = final4Ids.map(id => window.allSystemPlayers.find(x => x.id === id))
+                                            .sort((a, b) => b.displayMmr - a.displayMmr); // 실력순 정렬
+
+            // 4. ⚖️ 팽팽한 복식 분배 원칙 주입: [1등+4등] VS [2등+3등]
+            const p1 = final4Players[0].id; // 최고 고수
+            const p2 = final4Players[1].id; // 중상
+            const p3 = final4Players[2].id; // 중하
+            const p4 = final4Players[3].id; // 최하수
+
+            finalMatches.push({
+                id: `m_${Date.now()}_slot_${i}`,
+                status: "대기",
+                teamA: [p1, p4], // 1등 + 4등 결합
+                teamB: [p2, p3], // 2등 + 3등 결합
+                teamANames: getNamesFromIds([p1, p4]),
+                teamBNames: getNamesFromIds([p2, p3])
+            });
+
+            // 선출된 4인은 바쁜 사람 리스트에 잠금 추가 처리
             busyIds.add(p1); busyIds.add(p2); busyIds.add(p3); busyIds.add(p4);
         }
     }
