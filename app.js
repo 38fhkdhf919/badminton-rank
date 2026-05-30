@@ -240,7 +240,7 @@ window.initSessionPage = function() {
     const wrapper = document.getElementById('adminButtonWrapper');
     
     if (btnToggle && wrapper) {
-        // [인증 동기화 인터페이스 링 부팅 리액션]
+        // 🎯 [요구 1 보완]: 기인증 관리자면 새로고침 시에도 높이 공간 즉각 복원 자동 표출
         if (window.isAdminMode) {
             btnToggle.innerText = "🔓 관리자 인증 해제";
             btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1";
@@ -248,46 +248,32 @@ window.initSessionPage = function() {
             wrapper.style.marginTop = "0.25rem";
         } else {
             btnToggle.innerText = "🔐 마스터 관리자 인증";
-            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1";
+            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer flex items-center gap-1";
             wrapper.style.height = "0px";
             wrapper.style.marginTop = "0px";
         }
 
-        // 🎯 [요구 1 보완]: 알림창 원천 제거 및 타이틀 5연타 가변 컨테이너 바인딩 보정
-        let clickCount = 0; 
-        let lastTime = 0;
-        
-        // Firebase 수신 지연 상황에서도 이벤트를 무조건 강제 고정하는 시동 결합 장치
-        const bindTriggerLoop = setInterval(() => {
-            const triggerNode = document.getElementById('sessionMainTitle');
-            if (triggerNode) {
-                clearInterval(bindTriggerLoop);
-                triggerNode.onclick = function() {
-                    const now = Date.now(); 
-                    if (now - lastTime > 2500) { clickCount = 0; }
-                    clickCount++; 
-                    lastTime = now;
-                    
-                    if (clickCount === 5) {
-                        wrapper.style.height = "34px";
-                        wrapper.style.marginTop = "0.25rem";
-                        btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer flex items-center gap-1 fire-rank-card";
-                        clickCount = 0;
-                    }
-                };
-            }
-        }, 100);
+        // 🎯 [요구 1 반영]: 알림창 없이 세션 페이지 타이틀 5연타 즉시 공간 슬라이딩 오픈
+        let clickCount = 0; let lastTime = 0;
+        const triggerNode = document.getElementById('sessionMainTitle');
+        if (triggerNode) {
+            triggerNode.onclick = function() {
+                const now = Date.now(); if (now - lastTime > 2500) { clickCount = 0; }
+                clickCount++; lastTime = now;
+                if (clickCount === 5) {
+                    wrapper.style.height = "34px";
+                    wrapper.style.marginTop = "0.25rem";
+                    btnToggle.classList.add('fire-rank-card');
+                    clickCount = 0;
+                }
+            };
+        }
 
         btnToggle.onclick = function() {
             if (!window.isAdminMode) {
-                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { 
-                    window.isAdminMode = true; 
-                    localStorage.setItem("badminton_admin_login", "true"); 
-                } else { alert("비밀번호 에러!"); return; }
-            } else { 
-                window.isAdminMode = false; 
-                localStorage.setItem("badminton_admin_login", "false"); 
-            }
+                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { window.isAdminMode = true; localStorage.setItem("badminton_admin_login", "true"); }
+                else { alert("비밀번호 에러!"); return; }
+            } else { window.isAdminMode = false; localStorage.setItem("badminton_admin_login", "false"); }
             window.location.reload();
         };
     }
