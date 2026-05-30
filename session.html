@@ -29,8 +29,8 @@
         }
 
         @keyframes pulse-red {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.02); }
         }
         .animate-pulse-red { animation: pulse-red 1s infinite ease-in-out; }
 
@@ -40,38 +40,75 @@
         }
         .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
 
-        /* 🎯 [완벽한 전광판 스킨 교정]: 불필요한 날개 요소를 끄고 대진 카드만 화면에 매끄럽게 독점 배치 */
+        /* 📺 [TV 전광판 마스터 스킨]: 군더더기를 다 버리고 순수 대진 정보만 격자로 압축 고정 */
         .tv-fullscreen-mode {
             position: fixed !important; inset: 0 !important; z-index: 9999 !important;
-            background-color: #0f172a !important; padding: 2rem !important;
-            display: flex !important; flex-direction: column !important; justify-content: center !important;
+            background-color: #090d16 !important; padding: 1.5rem !important;
+            display: flex !important; flex-direction: column !important; justify-content: flex-start !important;
+            overflow: hidden !important;
         }
         
-        /* TV 전광판 모드 가동 시 주변 찌꺼기 보드들 완전 은폐 블로킹 */
+        /* 전광판 구동 시 주변 텍스트, 타이틀 헤더, 대기열 상자 즉시 제거 블로킹 */
         .tv-fullscreen-mode #unsubmittedAlertBox,
         .tv-fullscreen-mode #beforeStartStatsBox,
         .tv-fullscreen-mode h2 {
             display: none !important;
         }
 
+        /* 📊 가로/세로 비율에 맞춰 1열 또는 2열로 동적 융합되는 컨테이너 */
         .tv-fullscreen-mode #liveCourtsContainer {
-            display: grid !important; gap: 2rem !important; width: 100% !important; height: 100% !important;
-            grid-template-columns: repeat(auto-fit, minmax(45%, 1fr)) !important;
-            align-items: center !important; align-content: center !important;
+            display: grid !important; gap: 1.25rem !important; width: 100% !important; height: 100% !important;
+            /* 높이가 넓은 태블릿/세로 모니터는 1열, 일반 와이드 TV는 2열 배치를 위한 가변 셋업 */
+            grid-template-columns: repeat(auto-fit, minmax(48%, 1fr)) !important;
+            align-content: center !important;
         }
         
-        /* 📺 멀리서도 무조건 잘 보이게 폰트 크기 및 격자판 높이 자이언트 스케일업 */
-        .tv-fullscreen-mode .rounded-2xl { 
-            display: flex !important; flex-direction: column !important; justify-content: space-between !important; 
-            height: 42vh !important; padding: 2.5rem !important; background: #1e293b !important; 
-            border-color: #334155 !important; color: #f8fafc !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+        /* 화면이 세로로 아주 길거나 코트 수가 적을 때 1열 종대로 자동 정렬되도록 미디어 보완 */
+        @media (orientation: portrait) {
+            .tv-fullscreen-mode #liveCourtsContainer {
+                grid-template-columns: 1fr !important;
+            }
         }
-        .tv-fullscreen-mode .grid-cols-7 { font-size: 2.8rem !important; line-height: 1.2 !important; margin: auto 0 !important; }
-        .tv-fullscreen-mode .grid-cols-7 .bg-slate-50 { background-color: #0f172a !important; color: #f1f5f9 !important; border-color: #475569 !important; padding: 1.8rem !important; border-radius: 1.5rem !important; text-align: center !important; font-weight: 900 !important; }
-        .tv-fullscreen-mode .match-live-stopwatch { font-size: 2.2rem !important; }
-        .tv-fullscreen-mode span { color: #e2e8f0 !important; }
-        .tv-fullscreen-mode .text-indigo-600 { color: #818cf8 !important; font-size: 1.5rem !important; }
-        .tv-fullscreen-mode button { font-size: 1.5rem !important; padding: 1rem 2rem !important; border-radius: 1.25rem !important; }
+
+        /* 🏟️ 대진 카드 자이언트 브랜딩 스킨 */
+        .tv-fullscreen-mode .tv-card-unit {
+            display: flex !important; flex-direction: column !important; justify-content: center !important;
+            height: 100% !important; min-height: 120px !important; padding: 1.75rem !important; 
+            background: #151f32 !important; border: 2px solid #243552 !important; border-radius: 1.5rem !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7) !important; color: #f8fafc !important;
+        }
+        
+        /* 대진 카드 내부 헤더 스케일 업 */
+        .tv-fullscreen-mode .tv-card-header {
+            border-bottom: 2px solid #1e2d44 !important; padding-bottom: 0.75rem !important; margin-bottom: 1rem !important;
+        }
+
+        /* 👥 선수 이름 명찰 박스 100% 가독성 보장 처리 */
+        .tv-fullscreen-mode .tv-player-row {
+            font-size: 2.2rem !important; font-weight: 900 !important; line-height: 1.2 !important;
+        }
+        .tv-fullscreen-mode .tv-team-box {
+            background-color: #0b111c !important; color: #ffffff !important; 
+            border: 2px solid #2e4366 !important; padding: 1.25rem !important; 
+            border-radius: 1.25rem !important; text-align: center !important;
+            white-space: normal !important; word-break: break-all !important;
+            display: flex !important; items-center !important; justify-content: center !important;
+        }
+        .tv-fullscreen-mode .tv-vs-badge {
+            font-size: 2rem !important; color: #64748b !important; font-weight: 900 !important;
+        }
+
+        /* 🛑 버튼 차단 및 타이머 스케일 조정 */
+        .tv-fullscreen-mode button, .tv-fullscreen-mode .btn-ai-simulate { display: none !important; }
+        .tv-fullscreen-mode .match-live-stopwatch { font-size: 2.2rem !important; font-weight: 900 !important; color: #f43f5e !important; }
+        .tv-fullscreen-mode .tv-status-txt { font-size: 1.4rem !important; font-weight: 900 !important; }
+        
+        /* 입장 알림 싸이렌 텍스트 */
+        .tv-entry-siren {
+            font-size: 1.6rem !important; font-weight: 900 !important; color: #f59e0b !important;
+            background: rgba(245, 158, 11, 0.1) !important; border: 2px solid #f59e0b !important;
+            padding: 0.4rem 1.2rem !important; border-radius: 1rem !important;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
@@ -130,6 +167,8 @@
                             <option value="2" selected>2개 코트</option>
                             <option value="3">3개 코트</option>
                             <option value="4">4개 코트</option>
+                            <option value="5">5개 코트</option>
+                            <option value="6">6개 코트</option>
                         </select>
                     </div>
                     <div>
@@ -153,7 +192,6 @@
                     </div>
                     <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[240px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
-                
                 <div class="hidden"><div id="restPlayersContainer"></div></div>
             </div>
         </section>
