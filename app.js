@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDOO3yMqRlzMgnoacdaT5kuNcJKQYC-8zQ",
@@ -1145,12 +1145,13 @@ function runLiveDatabaseSimulationLoop() {
                 return;
             }
 
-            // 3. 🧠 [승률 예측 핵심 알고리즘]: 선출된 4인의 실시간 MMR을 추적하여 ELO 승률 % 정밀 계산
-            const teamAPlayers = targetMatch.teamA.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { mmr: 1000 });
-            const teamBPlayers = targetMatch.teamB.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { mmr: 1000 });
+            // 3. 🧠 [승률 예측 핵심 알고리즘]: 파이어베이스 기준 필드명인 displayMmr을 정밀 추적하여 ELO 승률 % 계산
+            const teamAPlayers = targetMatch.teamA.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
+            const teamBPlayers = targetMatch.teamB.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
             
-            const avgMmrA = (teamAPlayers.reduce((acc, p) => acc + (p.mmr || 1000), 0)) / 2;
-            const avgMmrB = (teamBPlayers.reduce((acc, p) => acc + (p.mmr || 1000), 0)) / 2;
+            // 💡 필드명을 displayMmr로 매핑 수정하여 NaN 및 1000점 평준화 현상 차단
+            const avgMmrA = (teamAPlayers.reduce((acc, p) => acc + (p.displayMmr || 1000), 0)) / 2;
+            const avgMmrB = (teamBPlayers.reduce((acc, p) => acc + (p.displayMmr || 1000), 0)) / 2;
 
             // 📈 표준 ELO 레이팅 예측 기대 승률 수식 산출
             const mmrDiff = avgMmrB - avgMmrA;
