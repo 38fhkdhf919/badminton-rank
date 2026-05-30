@@ -713,7 +713,7 @@ function renderLiveCourtsGrid(s) {
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
             if(window.isAdminMode || names.includes(myFixedName)) {
-                target.status = " 진행중"; target.startedAt = Date.now();
+                target.status = "진행중"; target.startedAt = Date.now();
                 update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
