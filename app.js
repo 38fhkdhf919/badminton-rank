@@ -564,14 +564,14 @@ function renderAttendanceBox(s) {
 if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (관람 모드 버튼 노출 버그 완전 박멸판)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (내 경기 전용 버튼 노출 완벽 수정판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
     
-    // 👤 [버그 수정 코어]: 공백이거나 드롭다운 가이드 텍스트 문구 자체일 때를 완벽하게 정밀 필터링
+    // 👤 현재 '일반 관람 모드' 상태인지 검사
     const isObserverMode = (myFixedName === "" || myFixedName === "-- 일반 관람 모드 --");
 
     if (window.liveMatchTimerInterval) { clearInterval(window.liveMatchTimerInterval); window.liveMatchTimerInterval = null; }
@@ -616,23 +616,26 @@ function renderLiveCourtsGrid(s) {
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
         const cleanMyName = myFixedName.split('(')[0].trim();
         
+        // 🎯 내 경기가 맞는지 여부 실시간 판정
         const isMyMatch = !isObserverMode && allMatchPlayerNames.includes(cleanMyName);
         const isLive = m.status === "진행중";
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
+        // 🎨 카드 스킨 스타일링 지정
         let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "my-neon-match-card bg-amber-50/20";
         if (isMyMatch) { cardBg = "my-neon-match-card bg-amber-50/40 scale-[1.01] border-amber-400"; }
 
-        // 🎯 [우선순위 역전 보정]: 관리자 모드가 켜져 있어도 일반 관람 모드를 선택했다면 제어 단추를 절대 표시하지 않음
+        // 🎯 [핵심 패치]: 오직 '내 경기'이거나 '마스터 관리자' 권한일 때만 버튼을 노출, 남의 경기면 무조건 지워버림
         let ctrlBtn = '';
-        if (!isObserverMode) {
+        if (isMyMatch || window.isAdminMode) {
             ctrlBtn = isLive 
                 ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
                 : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         }
         
-        const aiBtn = (!isObserverMode && isLive && s.isTestMode && window.isAdminMode) 
+        // AI정산 버튼도 철저하게 관리자 모드이면서 내 경기일 때만 제한적 노출 (관람 모드 차단)
+        const aiBtn = (window.isAdminMode && isLive && s.isTestMode) 
             ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` 
             : '';
 
@@ -645,6 +648,7 @@ function renderLiveCourtsGrid(s) {
                     <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
                 </div>`;
         } else {
+            // 아직 시작하지 않은 대진 카드 상단에는 노란색 네온 테두리와 함께 사이렌 문구 상시 깜빡임 표출
             statusBadge = `
                 <div class="flex items-center justify-between w-full">
                     <span class="text-[11px] font-black font-sans text-amber-600">⏳ 추천대진 ${idx + 1}순위 ${isMyMatch ? '🔥 내 경기!':''}</span>
