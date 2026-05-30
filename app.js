@@ -435,52 +435,54 @@ function commitAttendanceAction(pId) {
 }
 
 // ==========================================
-// 👥 명단 및 쉼터(대기열 제외) 토글 제어 인터페이스 (함수 전체)
+// 👥 명단 및 쉼터(대기열 제외) 토글 제어 인터페이스 (순정 복구 완결판)
 // ==========================================
 function renderAttendanceBox(s) {
     const togglerBox = document.getElementById('attendanceTogglerBox'); if (!togglerBox) return;
     const restContainer = document.getElementById('restPlayersContainer'); if (!restContainer) return;
     
-    const activePlayers = s.activePlayers || []; 
-    const restPlayers = s.restPlayers || [];
+    // 🚨 순정 필드명 매핑 (attendees로 원상 복구하여 데이터 연동 단절 버그 해결)
+    const attendees = s.attendees || []; 
+    const restList = s.restPlayers || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
 
-    // 1. 현재 참여 중인 전체 인원 카운트 갱신
-    const totalCount = activePlayers.length + restPlayers.length;
-    document.getElementById('attendeeCountLabel').innerText = `${totalCount}명 참여 (대기 ${activePlayers.length} / 쉼터 ${restPlayers.length})`;
+    // 1. 대기열 제외 유저를 뺀 순수 코트 대기조 필터링
+    const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
 
-    // 2. [참석 명단 구역] 화면 그리기
-    if (activePlayers.length === 0) {
-        togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">참석 가동 중인 인원이 없습니다.</div>`;
+    // 2. 현재 참여 중인 상단 총 인원 가이드 카운터 갱신
+    document.getElementById('attendeeCountLabel').innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
+
+    // 3. [참석 명단 구역] 화면 드로잉 (코트 대기 중인 유저들)
+    if (activeQueuePlayers.length === 0) {
+        togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">현재 코트 대기 중인 회원이 없습니다.</div>`;
     } else {
-        togglerBox.innerHTML = activePlayers.map(id => {
-            const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
+        togglerBox.innerHTML = activeQueuePlayers.map(id => {
+            const p = window.allSystemPlayers.find(x => x.id === parseInt(id)); if (!p) return '';
             const isMe = p.name === myFixedName && myFixedName !== "";
             
-            // 본인 카드라면 테두리를 금색(amber)으로 은은하게 강조하여 시인성 확보
+            // 🎯 내 이름 설정된 카드인 경우 황금빛 테두리 리액션 보존
             const borderStyle = isMe 
-                ? "border-amber-400 bg-amber-50/50 text-amber-900 font-black ring-1 ring-amber-400/30" 
+                ? "border-amber-400 bg-amber-50/50 text-amber-900 font-black ring-2 ring-amber-400/30 shadow-2xs" 
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
 
             return `
                 <button data-id="${id}" data-name="${p.name}" class="btn-toggle-active border px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${borderStyle}">
                     <span>${p.name}</span>
-                    <span class="text-[9px] text-slate-400 font-mono font-medium">(${p.displayMmr || 1500})</span>
                 </button>
             `;
         }).join('');
     }
 
-    // 3. [🚨 대기열 제외 인원(쉼터) 구역] 화면 그리기
-    if (restPlayers.length === 0) {
-        restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1">현재 쉼터가 비어 있습니다.</div>`;
+    // 4. [🚨 대기열 제외 인원(쉼터) 구역] 화면 드로잉
+    if (restList.length === 0) {
+        restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
     } else {
-        restContainer.innerHTML = restPlayers.map(id => {
-            const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
+        restContainer.innerHTML = restList.map(id => {
+            const p = window.allSystemPlayers.find(x => x.id === parseInt(id)); if (!p) return '';
             const isMe = p.name === myFixedName && myFixedName !== "";
             
             const borderStyle = isMe 
-                ? "border-amber-400 bg-amber-50/60 text-amber-900 font-black ring-1 ring-amber-400/40" 
+                ? "border-amber-400 bg-amber-50/60 text-amber-900 font-black ring-2 ring-amber-400/40" 
                 : "border-rose-200 bg-rose-50/40 text-rose-700 hover:bg-rose-50";
 
             return `
@@ -492,59 +494,53 @@ function renderAttendanceBox(s) {
     }
 
     // =======================================================
-    // 🎯 [권한 개혁] 이벤트 리스너 바인딩 및 본인/관리자 필터링 가드
+    // 🎯 [이벤트 핸들러]: 본인 및 관리자 권한별 토글 스위치 엔진
     // =======================================================
     
-    // A. 참석 상태인 유저를 클릭했을 때 (대기열 제외로 보낼지 판정)
+    // A. 코트 대기 유저 클릭 시 -> 대기열 제외(쉼터)로 이주 연산
     document.querySelectorAll('.btn-toggle-active').forEach(btn => {
         btn.onclick = function() {
-            const pId = this.getAttribute('data-id');
+            const pId = parseInt(this.getAttribute('data-id'));
             const pName = this.getAttribute('data-name');
             const isMe = pName === myFixedName && myFixedName !== "";
 
-            // 🔒 [권한 검증 1] 관리자이거나 '본인'인 경우에만 쉼터 이동 허용
             if (window.isAdminMode || isMe) {
-                // 관리자는 완전 불참 처리 선택지를 주지만, 일반 회원은 즉시 대기열 제외 처리
                 if (window.isAdminMode) {
-                    const mode = confirm(`[${pName}] 님 상태 변경\n\n확인(OK) : 💤 대기열 제외 (쉼터 이동)\n취소(Cancel) : ❌ 오늘 정모 불참 (명단 삭제)`);
+                    const mode = confirm(`[${pName}] 님 상태 변경\n\n확인(OK) : 💤 대기열 제외 (쉼터 이동)\n취소(Cancel) : ❌ 오늘 정모 불참 (명단 완전 삭제)`);
                     if (mode) {
-                        // 대기열 제외 (쉼터로 이동)
-                        const nextActive = activePlayers.filter(x => x !== pId);
-                        const nextRest = [...restPlayers]; if(!nextRest.includes(pId)) nextRest.push(pId);
-                        update(ref(db, `sessions/${window.currentSessionKey}`), { activePlayers: nextActive, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
+                        // 관리자 기능: 대기열 제외 (쉼터 이동)
+                        let nextRest = [...restList]; if(!nextRest.includes(pId)) nextRest.push(pId);
+                        update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                     } else {
-                        // 완전 불참 처리 (명단에서 유실 도려내기)
-                        if (confirm(`⚠️ 정말로 [${pName}] 님을 오늘 정모 명단에서 완전히 빼시겠습니까?`)) {
-                            const nextActive = activePlayers.filter(x => x !== pId);
-                            update(ref(db, `sessions/${window.currentSessionKey}`), { activePlayers: nextActive }).then(() => recalculateLiveQueueMatch());
+                        // 관리자 기능: 정모 완전 불참 (데이터 원천 삭제)
+                        if (confirm(`⚠️ 정말로 [${pName}] 님을 오늘 정모 명단에서 완전히 삭제하시겠습니까?`)) {
+                            const nextAttendees = attendees.filter(x => parseInt(x) !== pId);
+                            const nextRest = restList.filter(x => parseInt(x) !== pId);
+                            update(ref(db, `sessions/${window.currentSessionKey}`), { attendees: nextAttendees, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                         }
                     }
                 } else {
-                    // 💡 [본인인 경우]: 알림창 없이 즉시 쉼터(대기열 제외)로 이동
-                    const nextActive = activePlayers.filter(x => x !== pId);
-                    const nextRest = [...restPlayers]; if(!nextRest.includes(pId)) nextRest.push(pId);
-                    update(ref(db, `sessions/${window.currentSessionKey}`), { activePlayers: nextActive, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
+                    // 💡 [요구사항 반영]: 일반 회원 본인인 경우 경고창 없이 즉시 안전하게 쉼터로 변경 (불참 삭제 유실 차단)
+                    let nextRest = [...restList]; if(!nextRest.includes(pId)) nextRest.push(pId);
+                    update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                 }
             } else {
-                // ❌ 타인이 클릭했을 때 차단 알림
                 alert("🔒 본인의 상태만 변경할 수 있습니다. (참석 ↔ 대기열 제외)");
             }
         };
     });
 
-    // B. 대기열 제외(쉼터) 상태인 유저를 클릭했을 때 (다시 참석으로 복귀)
+    // B. 쉼터(제외자) 유저 클릭 시 -> 코트 대기조(참석)로 복귀 연산
     document.querySelectorAll('.btn-toggle-rest').forEach(btn => {
         btn.onclick = function() {
-            const pId = this.getAttribute('data-id');
+            const pId = parseInt(this.getAttribute('data-id'));
             const pName = this.getAttribute('data-name');
             const isMe = pName === myFixedName && myFixedName !== "";
 
-            // 🔒 [권한 검증 2] 관리자이거나 '본인'인 경우에만 다시 복귀 허용
             if (window.isAdminMode || isMe) {
                 if (confirm(`🏸 [${pName}] 님을 대기열에 다시 복귀시켜 매칭에 참여합니까?`)) {
-                    const nextRest = restPlayers.filter(x => x !== pId);
-                    const nextActive = [...activePlayers]; if(!nextActive.includes(pId)) nextActive.push(pId);
-                    update(ref(db, `sessions/${window.currentSessionKey}`), { activePlayers: nextActive, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
+                    const nextRest = restList.filter(x => parseInt(x) !== pId);
+                    update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                 }
             } else {
                 alert("🔒 본인의 상태만 변경할 수 있습니다. (참석 ↔ 대기열 제외)");
