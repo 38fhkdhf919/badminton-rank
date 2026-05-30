@@ -992,6 +992,74 @@ function handleAiSimulatedMatchCalculation(matchId) {
     });
 }
 
+// 🎯 GPT 피드백: 팀 조합 히스토리를 분석하여 최적의 조합을 반환하는 내포 함수 선언
+function createBalancedTeamsWithHistory(group, historyLog) {
+    const combos = [
+        [
+            [group[0], group[3]],
+            [group[1], group[2]]
+        ],
+        [
+            [group[0], group[2]],
+            [group[1], group[3]]
+        ],
+        [
+            [group[0], group[1]],
+            [group[2], group[3]]
+        ]
+    ];
+
+    const recentMatches = historyLog
+        .filter(m =>
+            m.teamA &&
+            m.teamB &&
+            m.teamA.length === 2 &&
+            m.teamB.length === 2
+        )
+        .slice(-20);
+
+    const countPairHistory = (p1, p2) => {
+        let count = 0;
+        recentMatches.forEach(m => {
+            const teams = [
+                m.teamA,
+                m.teamB
+            ];
+            teams.forEach(team => {
+                if (
+                    team.includes(p1) &&
+                    team.includes(p2)
+                ) {
+                    count++;
+                }
+            });
+        });
+        return count;
+    };
+
+    let bestCombo = combos[0];
+    let bestScore = Infinity;
+
+    combos.forEach(combo => {
+        const teamA = combo[0];
+        const teamB = combo[1];
+
+        const score =
+            countPairHistory(teamA[0], teamA[1]) +
+            countPairHistory(teamB[0], teamB[1]);
+
+        if (score < bestScore) {
+            bestScore = score;
+            bestCombo = combo;
+        }
+    });
+
+    return {
+        teamA: bestCombo[0],
+        teamB: bestCombo[1]
+    };
+}
+
 function recalculateLiveQueueMatch() {
     const s = window.currentActiveSession;
     if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
@@ -1043,7 +1111,6 @@ function recalculateLiveQueueMatch() {
     const getAdjustedCount = (id) =>
         Math.min(playCounts[id] || 0, maxPlayCount);
 
-    // 🎯 [문법 오류 완벽 수정 구역]: 꼬였던 중괄호 및 불필요한 return 블록 제거
     const getRecentPartnerMap = () => {
         const map = {};
         
@@ -1156,8 +1223,14 @@ function recalculateLiveQueueMatch() {
                 .map(id => window.allSystemPlayers.find(p => p.id === id))
                 .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            const teamA = [players[0].id, players[3].id];
-            const teamB = [players[1].id, players[2].id];
+            // 🎯 GPT 피드백 교체 구역 1 (기존 1+4 고정 분할을 과거 이력 추적형으로 분기 변경)
+            const teamResult = createBalancedTeamsWithHistory(
+                players.map(p => p.id),
+                historyLog
+            );
+
+            const teamA = teamResult.teamA;
+            const teamB = teamResult.teamB;
 
             finalMatches.push({
                 id: `m_${Date.now()}_${Math.random()}`,
@@ -1222,8 +1295,14 @@ function recalculateLiveQueueMatch() {
                 .map(id => window.allSystemPlayers.find(p => p.id === id))
                 .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            const teamA = [players[0].id, players[3].id];
-            const teamB = [players[1].id, players[2].id];
+            // 🎯 GPT 피드백 교체 구역 2 (신규 매칭 4인 완료 시 조합 자동 선택)
+            const teamResult = createBalancedTeamsWithHistory(
+                players.map(p => p.id),
+                historyLog
+            );
+
+            const teamA = teamResult.teamA;
+            const teamB = teamResult.teamB;
 
             finalMatches.push({
                 id: `m_${Date.now()}_${finalMatches.length}`,
