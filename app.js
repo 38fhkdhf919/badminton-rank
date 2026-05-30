@@ -993,40 +993,37 @@ function recalculateLiveQueueMatch() {
         Math.min(playCounts[id] || 0, maxPlayCount);
 
     // 🎯 GPT 피드백 1번 구역: getAdjustedCount 바로 아래 추가
-    // 직전 실제 2:2 경기 기준 동반자 조회
+    // 🎯 수정 구간: 최근 1경기가 아닌 코트 수(maxCourts)만큼의 한 사이클 경기를 누적하여 동반자 맵핑
     const getRecentPartnerMap = () => {
-
-        for (let i = historyLog.length - 1; i >= 0; i--) {
-
-            const m = historyLog[i];
-
-            if (
-                !m.teamA ||
-                !m.teamB ||
-                m.teamA.length !== 2 ||
-                m.teamB.length !== 2
-            ) {
-                continue;
-            }
-
-            const players = [
-                ...m.teamA,
-                ...m.teamB
-            ];
-
             const map = {};
-
-            players.forEach(player => {
-
-                map[player] =
-                    players.filter(
-                        id => id !== player
-                    );
-
+            
+            // 실제 2:2 경기 기록만 역순 필터링
+            const validMatches = historyLog.filter(m => 
+                m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
+            );
+            
+            // 최근 가동된 코트 수(maxCourts)만큼의 경기 배열 추출 (최근 한 사이클)
+            const recentCycleMatches = validMatches.slice(-maxCourts);
+    
+            // 추출된 최근 한 사이클 경기를 돌며 같은 경기에 뛴 모든 동반자 관계를 누적 저장
+            recentCycleMatches.forEach(m => {
+                const players = [...m.teamA, ...m.teamB];
+                
+                players.forEach(player => {
+                    if (!map[player]) {
+                        map[player] = [];
+                    }
+                    // 같은 경기에 참여했던 상대 및 파트너 ID 누적 push
+                    players.forEach(id => {
+                        if (id !== player && !map[player].includes(id)) {
+                            map[player].push(id);
+                        }
+                    });
+                });
             });
-
+    
             return map;
-        }
+        };
 
         return {};
     };
