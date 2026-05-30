@@ -561,14 +561,20 @@ function renderAttendanceBox(s) {
     });
 }
 
+// 글로벌 영역에 타이머 인터벌 핸들러 보관용 변수 선언 (함수 밖 최상단 근처에 두셔도 안전합니다)
+if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
+
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (네온 깜빡임 & 탭 알림 버그 완전 패치판)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (실시간 매치 타이머 완전 이식판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
     const isTestMode = s.isTestMode === true;
+
+    // 매 경기 상태가 변경될 때마다 기존 타이머 인터벌을 클리어하여 메모리 누수 방지
+    if (window.liveMatchTimerInterval) { clearInterval(window.liveMatchTimerInterval); window.liveMatchTimerInterval = null; }
 
     if (s.status === "예정") {
         liveContainer.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">대기중 채널입니다. 매칭 가동 시작 시 대진표가 개방됩니다.</div>`;
@@ -597,19 +603,16 @@ function renderLiveCourtsGrid(s) {
 
     if (currentMatches.length === 0) { liveContainer.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs">코트 대기열 매칭 조합 컴파일 중...</div>`; return; }
 
-    // 🎯 내 매칭 감지 레이더 플래그 초기화
     let isMyMatchDetectedInList = false;
 
     liveContainer.innerHTML = currentMatches.map((m, idx) => {
         if (m.status === "완료") return '';
         
-        // 🚨 [이름 일치 버그 해결]: teamANames 배열 내부에서 문자열 가공 없이 이름만 정확하게 추출
         const aNames = getNamesFromIds(m.teamA, m.teamANames); 
         const bNames = getNamesFromIds(m.teamB, m.teamBNames);
         const aNamesStr = aNames.join(', '); 
         const bNamesStr = bNames.join(', ');
         
-        // 이름 뒤에 괄호나 공백이 붙어 있어도 완벽하게 필터링하도록 정밀 검증 진행
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
         const cleanMyName = myFixedName.split('(')[0].trim();
         
@@ -618,7 +621,6 @@ function renderLiveCourtsGrid(s) {
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
-        // 🎯 [네온 보강]: 테일윈드 보더 클래스와 충돌하지 않도록 스타일 구조 분리 결합 보완
         let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "border border-slate-200 bg-white";
         if(isMyMatch) {
             cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01]";
@@ -626,14 +628,25 @@ function renderLiveCourtsGrid(s) {
 
         const ctrlBtn = isLive 
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
-            : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">▶ 경기시작</button>`;
+            : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         
         const aiBtn = (isLive && isTestMode && window.isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` : '';
+
+        // 🎯 [요구사항 반영]: 진행중일 때 경과 시간을 표시할 고유 타임 배지 스케일 마크업 주입
+        const timerBadge = isLive 
+            ? `<div class="flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-600 font-mono font-black text-[10px] px-2 py-0.5 rounded-md">
+                   <span class="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse-red"></span>
+                   <span class="match-live-stopwatch" data-start="${m.startedAt || Date.now()}">00:00</span>
+               </div>`
+            : '';
 
         return `
             <div class="rounded-2xl p-4 border transition-all space-y-3.5 ${cardBg}">
                 <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                    <span class="text-[10px] font-black font-sans text-indigo-600">${isLive ? '⚡ 진행중' : '⏳ 추천대진 ' + (idx + 1) + '순위'} ${isMyMatch ? '🔥 내 경기!':''}</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] font-black font-sans text-indigo-600">${isLive ? '⚡ 진행중' : '⏳ 추천대진 ' + (idx + 1) + '순위'} ${isMyMatch ? '🔥 내 경기!':''}</span>
+                        ${timerBadge}
+                    </div>
                     <div class="flex items-center">${ctrlBtn}${aiBtn}</div>
                 </div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
@@ -644,16 +657,32 @@ function renderLiveCourtsGrid(s) {
             </div>`;
     }).join('');
 
-    // 🎯 [요구사항 버그 해결]: 실시간 이름 매칭 통과 후 타 탭 체류 시 알림 점 완벽 제어
+    // 🎯 [요구사항 반영]: 1초마다 스톱워치 타겟 노드들을 전부 스캔해서 실시간 분:초 연산 갱신
+    const timerNodes = document.querySelectorAll('.match-live-stopwatch');
+    if (timerNodes.length > 0) {
+        const updateClocks = () => {
+            timerNodes.forEach(node => {
+                const startTime = parseInt(node.getAttribute('data-start'));
+                const diffMs = Date.now() - startTime;
+                if (diffMs < 0) { node.innerText = "00:00"; return; }
+                
+                const totalSec = Math.floor(diffMs / 1000);
+                const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
+                const sec = String(totalSec % 60).padStart(2, '0');
+                node.innerText = `${min}:${sec}`;
+            });
+        };
+        updateClocks(); // 첫 주기 즉시 가동
+        window.liveMatchTimerInterval = setInterval(updateClocks, 1000);
+    }
+
     const b1 = document.getElementById('myMatchNotificationBadge');
     const b2 = document.getElementById('myMatchNotificationBadgeSolid');
     if (b1 && b2) {
         if (isMyMatchDetectedInList && window.currentActiveMobileTabId !== 'sec-courts') {
-            b1.classList.remove('hidden');
-            b2.classList.remove('hidden');
+            b1.classList.remove('hidden'); b2.classList.remove('hidden');
         } else {
-            b1.classList.add('hidden');
-            b2.classList.add('hidden');
+            b1.classList.add('hidden'); b2.classList.add('hidden');
         }
     }
 
@@ -663,7 +692,10 @@ function renderLiveCourtsGrid(s) {
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
             if(window.isAdminMode || names.includes(myFixedName)) {
-                target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
+                // 🎯 경기 시작 버튼을 클릭한 시점의 시간초(타임스탬프)를 최초 생성하여 DB에 주입 기록
+                target.status = "진행중"; 
+                target.startedAt = Date.now();
+                update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
     });
