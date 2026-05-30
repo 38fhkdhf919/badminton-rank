@@ -1138,43 +1138,61 @@ function renderSessionRankTable(s) {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || window.allSystemPlayers.length === 0) return;
     
-    const statsLog = s.statsLog || {}; // 각 유저별 누적 승패 및 deltaSum 저장소
+    const attendees = s.attendees || [];
+    const statsLog = s.statsLog || {}; // 각 유저별 누적 승패 저장소
 
-    // 1. 데이터를 가공하여 임시 리스트 생성 및 정렬
-    let list = Object.entries(statsLog).map(([id, log]) => {
+    // 🎯 [버그 프리 핵심 변경]: statsLog가 비어있어도 현재 참석자(attendees) 기준으로 기본 베이스 라인을 강제 형성합니다.
+    let list = attendees.map(id => {
         const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
+        const log = statsLog[id] || {}; // 해당 유저의 전적 기록이 없으면 빈 객체 처리
         return {
-            name: p ? p.name : id,
+            name: p ? p.name : `회원(${id})`,
             baseMmr: p ? p.displayMmr : 1000,
             win: log.win || 0,
             lose: log.lose || 0,
             delta: log.delta || 0
         };
-    }).sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
+    });
 
-    // 2. HTML 렌더링 매핑 보정 (전적, 승률, MMR 결합 출력)
+    // 만약 출석부(attendees)도 비어있고 statsLog만 있다면 statsLog 기반으로 백업 전환
+    if (list.length === 0) {
+        list = Object.entries(statsLog).map(([id, log]) => {
+            const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
+            return {
+                name: p ? p.name : id,
+                baseMmr: p ? p.displayMmr : 1000,
+                win: log.win || 0,
+                lose: log.lose || 0,
+                delta: log.delta || 0
+            };
+        });
+    }
+
+    // 실시간 총합 레이팅(현재 MMR + 등락차) 높은 순 정렬
+    list.sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
+
+    // 2. HTML 화면에 출력 바인딩
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-xs text-slate-400 italic">현재 출석하거나 경기한 회원이 없어 성적표가 비어있습니다.</td></tr>`;
+        return;
+    }
+
     tbody.innerHTML = list.map((p, idx) => {
         const total = p.win + p.lose;
         const winRate = total > 0 ? Math.round((p.win / total) * 100) : 0;
-        const currentTotalMmr = p.baseMmr + p.delta; // 오늘의 최종 합산 MMR
+        const currentTotalMmr = p.baseMmr + p.delta; 
         
-        // MMR 등락폭 부호 및 컬러 세팅
         const deltaColor = p.delta >= 0 ? 'text-emerald-600' : 'text-rose-600';
         const deltaText = p.delta > 0 ? `(+${p.delta})` : (p.delta < 0 ? `(${p.delta})` : `(0)`);
-        
-        // 1등이면서 1승 이상 챙긴 유저 불꽃 마크 효과
         const isHot = idx === 0 && p.win > 0;
 
         return `
-            <tr class="${isHot ? 'hot-player-card text-red-500 font-bold' : ''}">
+            <tr class="${isHot ? 'bg-amber-50/40 text-red-500 font-bold' : ''}">
                 <td class="py-2 font-bold">${p.name}${isHot ? ' 🔥' : ''}</td>
-                
-                <td class="py-2 text-center font-mono text-slate-600">${p.win}승 ${p.lose}패</td>
-                
-                <td class="py-2 text-center font-mono font-bold text-indigo-600">${winRate}%</td>
-                
-                <td class="py-2 text-right font-mono font-black text-slate-900">
-                    ${currentTotalMmr}점 <span class="text-xs font-bold ${deltaColor}">${deltaText}</span>
+                <td class="py-2 text-center font-mono text-slate-600 text-xs">${p.win}승 ${p.lose}패</td>
+                <td class="py-2 text-center font-mono text-xs font-bold text-indigo-600">${winRate}%</td>
+                <td class="py-2 text-right font-mono text-xs font-black text-slate-900">
+                    ${currentTotalMmr}점 <span class="font-bold ${deltaColor}">${deltaText}</span>
                 </td>
             </tr>`;
     }).join('');
