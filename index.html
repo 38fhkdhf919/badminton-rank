@@ -16,14 +16,15 @@
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
 
-    <header class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white shadow-md">
-        <div class="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
+    <header class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white shadow-md transition-all duration-300">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div class="text-center sm:text-left">
                 <h1 id="easterEggTrigger" class="text-xl sm:text-2xl font-black tracking-tight font-sans cursor-pointer active:scale-[0.99] select-none">🏸 프리민턴 랭크 보드</h1>
-                <p class="text-xs text-indigo-200 mt-1 font-medium">프리민턴의 랭크 순위와 명예의 전당 아카이브</p>
+                <p class="text-xs text-indigo-200 mt-0.5 font-medium">프리민턴의 랭크 순위와 명예의 전당 아카이브</p>
             </div>
-            <div>
-                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 opacity-0 pointer-events-none select-none transition-all duration-500 flex items-center gap-1.5"></button>
+            
+            <div id="adminButtonWrapper" class="h-0 overflow-hidden transition-all duration-300 flex items-center justify-center sm:justify-end w-full sm:w-auto">
+                <button id="btnAdminToggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5"></button>
             </div>
         </div>
     </header>
