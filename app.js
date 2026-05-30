@@ -398,11 +398,23 @@ function buildIdentityDropdown() {
         const opt = document.createElement('option'); opt.value = p.name; opt.innerText = `${p.name} (${p.tier}조)`; select.appendChild(opt);
     });
     const savedName = localStorage.getItem("my_badminton_name"); if (savedName) select.value = savedName;
+    
     select.onchange = function() {
+        // 1. 변경된 이름을 브라우저 스토리지에 즉시 강제 갱신
         localStorage.setItem("my_badminton_name", this.value);
+        
+        // 2. 하단 개인 전적 검색창 하이잭 동기화
         const searchInput = document.getElementById('inputLocalSearchPlayer');
         if(searchInput) { searchInput.value = this.value; executeLocalRecordSearch(this.value); }
-        if(window.currentActiveSession) renderLiveCourtsGrid(window.currentActiveSession);
+        
+        if(window.currentActiveSession) {
+            // 3. 라이브 대진 카드 컬러링 실시간 리렌더링
+            renderLiveCourtsGrid(window.currentActiveSession);
+            
+            // 🎯 [요구사항 해결 핵심]: 이름을 변경하는 즉시 출석부를 강제로 다시 호출하여 
+            // 새로고침 없이도 '참석 ↔ 대기열 제외' 권한이 실시간으로 활성화되도록 인터페이스 갱신 보완
+            renderAttendanceBox(window.currentActiveSession);
+        }
     };
 }
 
