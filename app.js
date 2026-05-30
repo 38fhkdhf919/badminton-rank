@@ -877,8 +877,91 @@ function borderTrackAssign(q) {
     }).join('');
 }
 
-// 명칭 단축 동기화 프록시
-function executeLocalRecordSearch(queryName) { borderTrackAssign(queryName); }
+// ==========================================
+// 🔍 당일 개인 마감 전적 검색 및 성적표 실시간 포커싱 동기화
+// ==========================================
+function executeLocalRecordSearch(query) {
+    const container = document.getElementById('localSearchResultContainer'); if(!container) return;
+    const cleanQuery = (query || "").trim().split('(')[0].trim();
+
+    // 1. 먼저 기존 성적표 테이블의 모든 하이라이트 효과를 초기화 제거
+    document.querySelectorAll('#sessionLiveRankTableBody tr').forEach(row => {
+        row.classList.remove('highlight-row');
+    });
+
+    if(!cleanQuery) {
+        container.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">조회할 회원의 이름을 입력해 주세요.</div>`;
+        return;
+    }
+
+    // 2. 오늘의 실시간 성적표 테이블에서 검색어와 매칭되는 행 추적
+    let targetRow = null;
+    document.querySelectorAll('#sessionLiveRankTableBody tr').forEach(row => {
+        const nameCell = row.querySelector('td:first-child'); 
+        if (nameCell) {
+            const rowName = nameCell.innerText.split('(')[0].trim();
+            if (rowName === cleanQuery) {
+                targetRow = row;
+            }
+        }
+    });
+
+    // 3. 매칭된 성적표 행이 있다면 네온 불빛을 켜고 그 위치로 부드럽게 스크롤 이동
+    if (targetRow) {
+        targetRow.classList.add('highlight-row');
+        setTimeout(() => {
+            targetRow.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }, 50);
+    }
+
+    // 4. 하단 개인 전적 상세 일지 리스트 필터링
+    if (!window.currentActiveSession || !window.currentActiveSession.historyLog) {
+        container.innerHTML = `<div class="text-slate-400 text-[10px] py-1">기록 데이터가 없습니다.</div>`;
+        return;
+    }
+
+    const historyLog = window.currentActiveSession.historyLog || [];
+    const myMatches = historyLog.filter(m => {
+        const aNames = getNamesFromIds(m.teamA, m.teamANames).map(n => n.split('(')[0].trim());
+        const bNames = getNamesFromIds(m.teamB, m.teamBNames).map(n => n.split('(')[0].trim());
+        return aNames.includes(cleanQuery) || bNames.includes(cleanQuery);
+    });
+
+    if(myMatches.length === 0) {
+        container.innerHTML = `<div class="text-slate-400 text-[10px] py-1">오늘 진행한 경기 기록이 없습니다.</div>`;
+        return;
+    }
+
+    container.innerHTML = [...myMatches].reverse().map(m => {
+        const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', ');
+        const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
+        
+        const isTeamA = getNamesFromIds(m.teamA, m.teamANames).map(n => n.split('(')[0].trim()).includes(cleanQuery);
+        const myScore = isTeamA ? m.scoreA : m.scoreB;
+        const opScore = isTeamA ? m.scoreB : m.scoreA;
+        const isWin = myScore > opScore;
+
+        const resultBadge = isWin 
+            ? `<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] px-1.5 py-0.5 rounded-md font-black">WIN</span>`
+            : `<span class="bg-rose-100 text-rose-800 border border-rose-300 text-[9px] px-1.5 py-0.5 rounded-md font-black">LOSE</span>`;
+
+        return `
+            <div class="bg-slate-50 border border-slate-200/70 p-2.5 rounded-xl text-[11px] space-y-1">
+                <div class="flex justify-between items-center">
+                    <span class="text-[9px] text-slate-400 font-mono">🎯 점수차: ${Math.abs(myScore - opScore)}점</span>
+                    ${resultBadge}
+                </div>
+                <div class="text-slate-700 font-medium">
+                    <span class="${isTeamA ? 'font-black text-indigo-600':''}">${aNames}</span> 
+                    <span class="font-mono font-bold mx-1">${m.scoreA} : ${m.scoreB}</span> 
+                    <span class="${!isTeamA ? 'font-black text-indigo-600':''}">${bNames}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
 
 function executeGlobalRecordSearch() {
     const input = document.getElementById('inputGlobalSearchPlayer'); const container = document.getElementById('globalSearchResultContainer');
