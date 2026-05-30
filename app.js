@@ -187,76 +187,110 @@ window.initDashboardPage = function() {
 };
 
 function calculateGlobalLeaderboard(allSessions) {
+
     const tbody = document.getElementById('globalRankTableBody');
+
     if (!tbody || window.allSystemPlayers.length === 0) return;
 
+
+
     let aggregateMap = {};
+
     window.allSystemPlayers.forEach(p => {
-        if (p && p.id) {
-            aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr || 1000, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
-        }
+
+        aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
+
     });
 
-    // 🎯 [먹통 버그 수정]: 빈 세션 객체 방어막 구축 (filter(Boolean) 및 데이터 검증 추가)
-    const sortedSessions = Object.entries(allSessions || {})
-        .filter(([_, s]) => s && s.createdAt)
-        .sort((a,b) => a[1].createdAt - b[1].createdAt);
-        
+
+
+    const sortedSessions = Object.entries(allSessions).sort((a,b) => a[1].createdAt - b[1].createdAt);
+
     sortedSessions.forEach(([sKey, s]) => {
-        // statsLog가 존재하고 유효한 데이터가 있을 때만 루프 연산 실행
-        if (s && s.statsLog && Object.keys(s.statsLog).length > 0) {
+
+        if (s.statsLog) {
+
             Object.entries(s.statsLog).forEach(([pId, log]) => {
+
                 const player = aggregateMap[pId];
-                if (player && log) {
-                    player.win += (log.win || 0); 
-                    player.lose += (log.lose || 0); 
-                    player.deltaSum += (log.delta || 0);
+
+                if (player) {
+
+                    player.win += (log.win || 0); player.lose += (log.lose || 0); player.deltaSum += (log.delta || 0);
+
                     player.historyTimeline.push(player.baseMmr + player.deltaSum);
+
                 }
+
             });
+
         }
+
     });
+
+
 
     let sortedList = Object.values(aggregateMap).sort((a, b) => (b.baseMmr + b.deltaSum) - (a.baseMmr + a.deltaSum));
-    
-    // 🎯 [먹통 버그 수정]: 리스트가 비어있을 경우 예외 출력 방어 코드
-    if (sortedList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">조회 가능한 통합 레이팅 데이터가 없습니다.</td></tr>`;
-        return;
-    }
 
     tbody.innerHTML = sortedList.map((p, idx) => {
+
         const total = p.win + p.lose;
+
         return `
+
             <tr class="hover:bg-indigo-50/40 transition-colors cursor-pointer btn-open-trend-chart" data-id="${p.id}" data-name="${p.name}" data-timeline="${JSON.stringify(p.historyTimeline)}">
+
                 <td class="py-2.5 px-4 text-center font-black text-slate-400 font-mono">${idx + 1}</td>
+
                 <td class="py-2.5 px-4 font-black text-indigo-950">${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.tier}조)</span></td>
+
                 <td class="py-2.5 px-4 text-center font-mono text-slate-500">${total}판</td>
+
                 <td class="py-2.5 px-4 text-center font-mono text-slate-600">${p.win}승 / ${p.lose}패</td>
+
                 <td class="py-2.5 px-4 text-center font-mono font-black text-indigo-600">${total>0?Math.round(p.win/total*100):0}%</td>
+
                 <td class="py-2.5 px-4 text-right font-black font-mono text-slate-900">${p.baseMmr + p.deltaSum}점</td>
+
             </tr>`;
+
     }).join('');
 
+
+
     document.querySelectorAll('.btn-open-trend-chart').forEach(tr => {
+
         tr.onclick = function() {
+
             const pId = this.getAttribute('data-id'); const pName = this.getAttribute('data-name');
-            const timelineStr = this.getAttribute('data-timeline');
-            if (!timelineStr) return;
-            
-            const timeline = JSON.parse(timelineStr);
+
+            const timeline = JSON.parse(this.getAttribute('data-timeline'));
+
             document.getElementById('modalPlayerTitle').innerText = `🏆 [${pName}] 회원 MMR 성장 곡선`;
+
             document.getElementById('chartModal').classList.remove('hidden');
-            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId]?.baseMmr || 1000];
+
+            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId].baseMmr];
+
             const ctx = document.getElementById('playerTrendChart').getContext('2d');
+
             if (activeChartInstance) activeChartInstance.destroy();
+
             activeChartInstance = new Chart(ctx, {
+
                 type: 'line', data: { labels: chartData.map((_, i) => `${i + 1}회차`), datasets: [{ data: chartData, borderColor: '#4f46e5', borderWidth: 3, fill: false }] },
+
                 options: { responsive: true, maintainAspectRatio: false }
+
             });
+
         };
+
     });
-}
+
+} 
+
+
 
 // ==========================================
 // 🏟️ 특정 정모 세션 제어 라이브 채널 코어 (함수 전체)
@@ -977,10 +1011,9 @@ function recalculateLiveQueueMatch() {
     });
 
     let playCounts = {};
-     attendees.forEach(id => playCounts[id] = 0);
+    attendees.forEach(id => playCounts[id] = 0);
 
     historyLog.forEach(m => {
-
         // 실제 2:2 경기만 경기수 계산
         if (
             !m.teamA ||
@@ -996,7 +1029,6 @@ function recalculateLiveQueueMatch() {
                 playCounts[id]++;
             }
         });
-
     });
 
     const activePlayCounts = attendees
@@ -1011,62 +1043,47 @@ function recalculateLiveQueueMatch() {
     const getAdjustedCount = (id) =>
         Math.min(playCounts[id] || 0, maxPlayCount);
 
-    // 🎯 GPT 피드백 1번 구역: getAdjustedCount 바로 아래 추가
-    // 🎯 수정 구간: 최근 1경기가 아닌 코트 수(maxCourts)만큼의 한 사이클 경기를 누적하여 동반자 맵핑
+    // 🎯 [문법 오류 완벽 수정 구역]: 꼬였던 중괄호 및 불필요한 return 블록 제거
     const getRecentPartnerMap = () => {
-            const map = {};
+        const map = {};
+        
+        // 실제 2:2 경기 기록만 역순 필터링
+        const validMatches = historyLog.filter(m => 
+            m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
+        );
+        
+        // 최근 가동된 코트 수(maxCourts)만큼의 경기 배열 추출 (최근 한 사이클)
+        const recentCycleMatches = validMatches.slice(-maxCourts);
+
+        // 추출된 최근 한 사이클 경기를 돌며 같은 경기에 뛴 모든 동반자 관계를 누적 저장
+        recentCycleMatches.forEach(m => {
+            const players = [...m.teamA, ...m.teamB];
             
-            // 실제 2:2 경기 기록만 역순 필터링
-            const validMatches = historyLog.filter(m => 
-                m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
-            );
-            
-            // 최근 가동된 코트 수(maxCourts)만큼의 경기 배열 추출 (최근 한 사이클)
-            const recentCycleMatches = validMatches.slice(-maxCourts);
-    
-            // 추출된 최근 한 사이클 경기를 돌며 같은 경기에 뛴 모든 동반자 관계를 누적 저장
-            recentCycleMatches.forEach(m => {
-                const players = [...m.teamA, ...m.teamB];
-                
-                players.forEach(player => {
-                    if (!map[player]) {
-                        map[player] = [];
+            players.forEach(player => {
+                if (!map[player]) {
+                    map[player] = [];
+                }
+                // 같은 경기에 참여했던 상대 및 파트너 ID 누적 push
+                players.forEach(id => {
+                    if (id !== player && !map[player].includes(id)) {
+                        map[player].push(id);
                     }
-                    // 같은 경기에 참여했던 상대 및 파트너 ID 누적 push
-                    players.forEach(id => {
-                        if (id !== player && !map[player].includes(id)) {
-                            map[player].push(id);
-                        }
-                    });
                 });
             });
-    
-            return map;
-        };
+        });
 
-        return {};
+        return map;
     };
 
-    const recentPartnerMap =
-        getRecentPartnerMap();
+    const recentPartnerMap = getRecentPartnerMap();
 
-    const canJoinGroup = (
-        candidate,
-        group
-    ) => {
-
+    const canJoinGroup = (candidate, group) => {
         for (const member of group) {
-
-            const recent =
-                recentPartnerMap[member] || [];
-
-            if (
-                recent.includes(candidate)
-            ) {
+            const recent = recentPartnerMap[member] || [];
+            if (recent.includes(candidate)) {
                 return false;
             }
         }
-
         return true;
     };
 
@@ -1102,96 +1119,45 @@ function recalculateLiveQueueMatch() {
     // =========================
     // 기존 홀딩방 우선 채우기
     // =========================
-
-    let freePlayers = attendees
-        .filter(id => !busyIds.has(id));
+    let freePlayers = attendees.filter(id => !busyIds.has(id));
 
     holdMatches.forEach(hold => {
-
         let group = [...(hold.teamA || [])];
-
         group.forEach(id => busyIds.add(id));
 
         while (group.length < 4) {
-
             const anchorRank = rankMap[group[0]];
 
-            // 🎯 GPT 피드백 2번 구역: 홀딩방 채우기 중복 회피 및 허용 로직 교체
             let candidate = freePlayers.find(id => {
-
-                if (group.includes(id))
-                    return false;
-
+                if (group.includes(id)) return false;
                 const rank = rankMap[id];
-
-                if (
-                    Math.abs(rank - anchorRank) > 4
-                ) {
-                    return false;
-                }
-
-                return canJoinGroup(
-                    id,
-                    group
-                );
+                if (Math.abs(rank - anchorRank) > 4) return false;
+                return canJoinGroup(id, group);
             });
 
             // 실패 시 최근경기 중복 허용
             if (!candidate) {
-
-                candidate =
-                    freePlayers.find(id => {
-
-                        if (
-                            group.includes(id)
-                        ) {
-                            return false;
-                        }
-
-                        const rank =
-                            rankMap[id];
-
-                        return (
-                            Math.abs(
-                                rank -
-                                anchorRank
-                            ) <= 4
-                        );
-                    });
+                candidate = freePlayers.find(id => {
+                    if (group.includes(id)) return false;
+                    const rank = rankMap[id];
+                    return Math.abs(rank - anchorRank) <= 4;
+                });
             }
 
             if (!candidate) break;
 
             group.push(candidate);
-
             busyIds.add(candidate);
-
-            freePlayers =
-                freePlayers.filter(x => x !== candidate);
+            freePlayers = freePlayers.filter(x => x !== candidate);
         }
 
         if (group.length === 4) {
-
             const players = group
-                .map(id =>
-                    window.allSystemPlayers.find(
-                        p => p.id === id
-                    )
-                )
-                .sort(
-                    (a, b) =>
-                        b.displayMmr - a.displayMmr
-                );
+                .map(id => window.allSystemPlayers.find(p => p.id === id))
+                .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            const teamA = [
-                players[0].id,
-                players[3].id
-            ];
-
-            const teamB = [
-                players[1].id,
-                players[2].id
-            ];
+            const teamA = [players[0].id, players[3].id];
+            const teamB = [players[1].id, players[2].id];
 
             finalMatches.push({
                 id: `m_${Date.now()}_${Math.random()}`,
@@ -1201,9 +1167,7 @@ function recalculateLiveQueueMatch() {
                 teamANames: getNamesFromIds(teamA),
                 teamBNames: getNamesFromIds(teamB)
             });
-
         } else {
-
             finalMatches.push({
                 ...hold,
                 teamA: group,
@@ -1215,124 +1179,51 @@ function recalculateLiveQueueMatch() {
     // =========================
     // 신규 매칭 생성
     // =========================
-
     let freshQueue = attendees
         .filter(id => !busyIds.has(id))
-        .sort(
-            (a, b) =>
-                getAdjustedCount(a) -
-                getAdjustedCount(b)
-        );
+        .sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
 
     while (
         getRealMatchCount() < maxCourts &&
         freshQueue.length > 0
     ) {
-
         const anchorId = freshQueue[0];
-
         const anchorRank = rankMap[anchorId];
-
         let group = [anchorId];
 
-        // 🎯 GPT 피드백 3번 구역: 신규 매칭 생성 내부 1차(회피) 및 2차(중복허용) 로직 교체
         // 1차 : 직전 경기 중복 회피
-        for (
-            let i = 1;
-            i < freshQueue.length;
-            i++
-        ) {
+        for (let i = 1; i < freshQueue.length; i++) {
+            const candidate = freshQueue[i];
+            const rank = rankMap[candidate];
 
-            const candidate =
-                freshQueue[i];
-
-            const rank =
-                rankMap[candidate];
-
-            if (
-                Math.abs(
-                    rank -
-                    anchorRank
-                ) > 4
-            ) {
-                continue;
-            }
-
-            if (
-                canJoinGroup(
-                    candidate,
-                    group
-                )
-            ) {
+            if (Math.abs(rank - anchorRank) > 4) continue;
+            if (canJoinGroup(candidate, group)) {
                 group.push(candidate);
             }
-
-            if (group.length === 4)
-                break;
+            if (group.length === 4) break;
         }
 
         // 2차 : 부족하면 중복 허용
         if (group.length < 4) {
+            for (let i = 1; i < freshQueue.length; i++) {
+                const candidate = freshQueue[i];
+                if (group.includes(candidate)) continue;
+                const rank = rankMap[candidate];
 
-            for (
-                let i = 1;
-                i < freshQueue.length;
-                i++
-            ) {
-
-                const candidate =
-                    freshQueue[i];
-
-                if (
-                    group.includes(
-                        candidate
-                    )
-                ) {
-                    continue;
-                }
-
-                const rank =
-                    rankMap[candidate];
-
-                if (
-                    Math.abs(
-                        rank -
-                        anchorRank
-                    ) <= 4
-                ) {
+                if (Math.abs(rank - anchorRank) <= 4) {
                     group.push(candidate);
                 }
-
-                if (
-                    group.length === 4
-                ) {
-                    break;
-                }
+                if (group.length === 4) break;
             }
         }
 
         if (group.length === 4) {
-
             const players = group
-                .map(id =>
-                    window.allSystemPlayers.find(
-                        p => p.id === id
-                    )
-                )
-                .sort(
-                    (a, b) =>
-                        b.displayMmr - a.displayMmr
-                );
+                .map(id => window.allSystemPlayers.find(p => p.id === id))
+                .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            const teamA = [
-                players[0].id,
-                players[3].id
-            ];
-
-            const teamB = [
-                players[1].id,
-                players[2].id
-            ];
+            const teamA = [players[0].id, players[3].id];
+            const teamB = [players[1].id, players[2].id];
 
             finalMatches.push({
                 id: `m_${Date.now()}_${finalMatches.length}`,
@@ -1342,16 +1233,10 @@ function recalculateLiveQueueMatch() {
                 teamANames: getNamesFromIds(teamA),
                 teamBNames: getNamesFromIds(teamB)
             });
-
         } else {
-
-            const alreadyHasHold =
-                finalMatches.some(m =>
-                    !m.teamB || m.teamB.length === 0
-                );
+            const alreadyHasHold = finalMatches.some(m => !m.teamB || m.teamB.length === 0);
 
             if (!alreadyHasHold) {
-
                 finalMatches.push({
                     id: `hold_${anchorId}`,
                     status: "대기",
@@ -1364,16 +1249,12 @@ function recalculateLiveQueueMatch() {
         }
 
         group.forEach(id => busyIds.add(id));
-
-        freshQueue =
-            freshQueue.filter(id => !busyIds.has(id));
+        freshQueue = freshQueue.filter(id => !busyIds.has(id));
     }
 
     update(
         ref(db, `sessions/${window.currentSessionKey}`),
-        {
-            currentMatches: finalMatches
-        }
+        { currentMatches: finalMatches }
     );
 }
 
