@@ -821,8 +821,7 @@ function handleAiSimulatedMatchCalculation(matchId) {
         return;
     }
 
-    // 2. 💡 [버그 해결 핵심]: Uncaught ReferenceError: get 에러를 차단하기 위해 
-    // 전역으로 관리되고 있는 상태 레지스터 객체(window.currentActiveSession)에서 직접 스냅샷을 0.1초만에 복제합니다.
+    // 2. 전역 레지스터 객체 스냅샷 복제
     const s = window.currentActiveSession;
     if (!s) {
         alert("⚠️ 현재 세션 데이터를 동기화하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -831,6 +830,7 @@ function handleAiSimulatedMatchCalculation(matchId) {
 
     const currentMatches = s.currentMatches || [];
     const historyLog = s.historyLog || [];
+    let statsLog = s.statsLog || {}; // 🎯 누락되었던 성적표 연산 데이터셋 주입
     
     const targetIdx = currentMatches.findIndex(x => x.id === matchId);
     if (targetIdx === -1) {
@@ -861,26 +861,40 @@ function handleAiSimulatedMatchCalculation(matchId) {
     match.scoreB = finalScoreB;
     match.endedAt = Date.now();
 
-    // 최종 정산 히스토리 로그에 결합 이주
-    if (
-            match.teamA &&
-            match.teamB &&
-            match.teamA.length === 2 &&
-            match.teamB.length === 2
-        ) {
-            historyLog.push(match);
-        }
+    // 🎯 [핵심 버그 수정]: AI 정산 시에도 MMR 변동치(Elo) 및 승패 데이터 실시간 누적 연산 처리 부품 주입
+    if (match.teamA && match.teamB && match.teamA.length === 2 && match.teamB.length === 2) {
+        historyLog.push(match);
+
+        const winTeamA = finalScoreA > finalScoreB;
+        let sumA = 0, sumB = 0;
+        match.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
+        match.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
+        
+        const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400));
+        const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
+        const deltaA = Math.round(32 * ((winTeamA ? 1 : 0) - expA));
+        const deltaB = Math.round(32 * ((!winTeamA ? 1 : 0) - expB));
+
+        [...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
+        match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
+        match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
+    }
 
     // 현재 구동 코트 밖 대기열 리스트 리빌딩 (완료된 매치 드롭)
     const nextMatches = currentMatches.filter(x => x.id !== matchId);
 
-    // 3. 이미 파일 내에 정상 등록되어 검증된 'update'와 'ref' 함수를 사용해 파이버베이스 슛 바인딩
+    // 3. 파이어베이스 데이터베이스 슛 바인딩 및 화면 즉시 동기화
     const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
     update(sessionRef, {
         currentMatches: nextMatches,
-        historyLog: historyLog
+        historyLog: historyLog,
+        statsLog: statsLog // 🎯 연산된 성적표 데이터 전송 추가
     }).then(() => {
         console.log("🤖 AI 정산 동기화 마감 완료");
+        s.currentMatches = nextMatches;
+        s.historyLog = historyLog;
+        s.statsLog = statsLog;
+        renderSessionRankTable(s); // 🎯 실시간 성적표 즉시 리렌더링 강제 실행
         if (typeof recalculateLiveQueueMatch === "function") {
             recalculateLiveQueueMatch();
         }
@@ -1277,7 +1291,14 @@ if(document.getElementById('btnSubmitMatchScore')) {
         btnWinA.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
         btnWinB.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-xl border border-slate-300 transition-all";
 
-        update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
+        // 🎯 보정 반사: 데이터 업데이트 후 로컬 메모리 동기화 및 실시간 성적표 새로고침 강제 트리거
+        update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches, historyLog, statsLog }).then(() => { 
+            s.currentMatches = currentMatches;
+            s.historyLog = historyLog;
+            s.statsLog = statsLog;
+            renderSessionRankTable(s);
+            recalculateLiveQueueMatch(); 
+        });
     };
 }
 
