@@ -958,7 +958,7 @@ function recalculateLiveQueueMatch() {
     });
 
     let playCounts = {};
-    attendees.forEach(id => playCounts[id] = 0);
+     attendees.forEach(id => playCounts[id] = 0);
 
     historyLog.forEach(m => {
 
@@ -991,6 +991,68 @@ function recalculateLiveQueueMatch() {
 
     const getAdjustedCount = (id) =>
         Math.min(playCounts[id] || 0, maxPlayCount);
+
+    // 🎯 GPT 피드백 1번 구역: getAdjustedCount 바로 아래 추가
+    // 직전 실제 2:2 경기 기준 동반자 조회
+    const getRecentPartnerMap = () => {
+
+        for (let i = historyLog.length - 1; i >= 0; i--) {
+
+            const m = historyLog[i];
+
+            if (
+                !m.teamA ||
+                !m.teamB ||
+                m.teamA.length !== 2 ||
+                m.teamB.length !== 2
+            ) {
+                continue;
+            }
+
+            const players = [
+                ...m.teamA,
+                ...m.teamB
+            ];
+
+            const map = {};
+
+            players.forEach(player => {
+
+                map[player] =
+                    players.filter(
+                        id => id !== player
+                    );
+
+            });
+
+            return map;
+        }
+
+        return {};
+    };
+
+    const recentPartnerMap =
+        getRecentPartnerMap();
+
+    const canJoinGroup = (
+        candidate,
+        group
+    ) => {
+
+        for (const member of group) {
+
+            const recent =
+                recentPartnerMap[member] || [];
+
+            if (
+                recent.includes(candidate)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    };
 
     // 진행중 경기만 유지
     let finalMatches = currentMatches.filter(
@@ -1038,14 +1100,49 @@ function recalculateLiveQueueMatch() {
 
             const anchorRank = rankMap[group[0]];
 
-            const candidate = freePlayers.find(id => {
+            // 🎯 GPT 피드백 2번 구역: 홀딩방 채우기 중복 회피 및 허용 로직 교체
+            let candidate = freePlayers.find(id => {
 
-                if (group.includes(id)) return false;
+                if (group.includes(id))
+                    return false;
 
                 const rank = rankMap[id];
 
-                return Math.abs(rank - anchorRank) <= 4;
+                if (
+                    Math.abs(rank - anchorRank) > 4
+                ) {
+                    return false;
+                }
+
+                return canJoinGroup(
+                    id,
+                    group
+                );
             });
+
+            // 실패 시 최근경기 중복 허용
+            if (!candidate) {
+
+                candidate =
+                    freePlayers.find(id => {
+
+                        if (
+                            group.includes(id)
+                        ) {
+                            return false;
+                        }
+
+                        const rank =
+                            rankMap[id];
+
+                        return (
+                            Math.abs(
+                                rank -
+                                anchorRank
+                            ) <= 4
+                        );
+                    });
+            }
 
             if (!candidate) break;
 
@@ -1122,19 +1219,80 @@ function recalculateLiveQueueMatch() {
 
         let group = [anchorId];
 
-        for (let i = 1; i < freshQueue.length; i++) {
+        // 🎯 GPT 피드백 3번 구역: 신규 매칭 생성 내부 1차(회피) 및 2차(중복허용) 로직 교체
+        // 1차 : 직전 경기 중복 회피
+        for (
+            let i = 1;
+            i < freshQueue.length;
+            i++
+        ) {
 
-            const candidate = freshQueue[i];
+            const candidate =
+                freshQueue[i];
 
-            const rank = rankMap[candidate];
+            const rank =
+                rankMap[candidate];
 
             if (
-                Math.abs(rank - anchorRank) <= 4
+                Math.abs(
+                    rank -
+                    anchorRank
+                ) > 4
+            ) {
+                continue;
+            }
+
+            if (
+                canJoinGroup(
+                    candidate,
+                    group
+                )
             ) {
                 group.push(candidate);
             }
 
-            if (group.length === 4) break;
+            if (group.length === 4)
+                break;
+        }
+
+        // 2차 : 부족하면 중복 허용
+        if (group.length < 4) {
+
+            for (
+                let i = 1;
+                i < freshQueue.length;
+                i++
+            ) {
+
+                const candidate =
+                    freshQueue[i];
+
+                if (
+                    group.includes(
+                        candidate
+                    )
+                ) {
+                    continue;
+                }
+
+                const rank =
+                    rankMap[candidate];
+
+                if (
+                    Math.abs(
+                        rank -
+                        anchorRank
+                    ) <= 4
+                ) {
+                    group.push(candidate);
+                }
+
+                if (
+                    group.length === 4
+                ) {
+                    break;
+                }
+            }
         }
 
         if (group.length === 4) {
