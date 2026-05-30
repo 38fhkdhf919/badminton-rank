@@ -11,6 +11,23 @@
             50% { border-color: #f97316; box-shadow: inset 0 0 14px rgba(249,115,22,0.5), 0 0 20px rgba(249,115,22,0.7); }
         }
         .hot-player-card { animation: fire-glow 1.5s infinite ease-in-out; background-color: #fffaf7 !important; border-width: 2px !important; }
+
+        /* 🎯 [신규 기믹]: 내 경기 카드 전용 천천히 깜빡이는 황금빛 네온 조명 애니메이션 */
+        @keyframes neon-pulse {
+            0%, 100% { 
+                border-color: #fbbf24; 
+                box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), inset 0 0 4px rgba(251, 191, 36, 0.2); 
+            }
+            50% { 
+                border-color: #f59e0b; 
+                box-shadow: 0 0 22px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.4);
+                background-color: rgba(254, 243, 199, 0.45);
+            }
+        }
+        .my-neon-match-card { 
+            animation: neon-pulse 2.2s infinite ease-in-out; 
+            border-width: 2.5px !important;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
@@ -45,8 +62,10 @@
     </header>
 
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-xl z-50 flex md:hidden items-center justify-around py-2.5">
-        <button onclick="switchMobileTab('sec-courts')" id="nav-tab-courts" class="flex flex-col items-center gap-1 text-indigo-600 font-black text-xs transition">
+        <button onclick="switchMobileTab('sec-courts')" id="nav-tab-courts" class="flex flex-col items-center gap-1 text-indigo-600 font-black text-xs transition relative">
             <span class="text-lg">🏟️</span> <span>라이브 대진</span>
+            <span id="myMatchNotificationBadge" class="absolute top-0 right-3 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white hidden animate-ping"></span>
+            <span id="myMatchNotificationBadgeSolid" class="absolute top-0 right-3 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white hidden"></span>
         </button>
         <button onclick="switchMobileTab('sec-attendance')" id="nav-tab-attendance" class="flex flex-col items-center gap-1 text-slate-400 font-bold text-xs transition">
             <span class="text-lg">👥</span> <span>출석/제외</span>
@@ -175,7 +194,7 @@
                         </div>
                         <div class="flex items-center gap-1.5">
                             <button id="btnWinBSelector" class="bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all">승리</button>
-                            <input type="number" id="inputScoreB" min="0" placeholder="점수" class="w-14 text-center bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-mono font-black text-sm outline-none">
+                            <input type="number" id="inputScoreB" min="0" placeholder="점수" class="w-14 text-center bg-slate-50 border rounded-lg p-1.5 font-mono font-black text-sm outline-none">
                         </div>
                     </div>
                 </div>
@@ -186,11 +205,24 @@
 
     <script type="module" src="./app.js"></script>
     <script>
+        // 🎯 모바일 탭 상태 추적용 글로벌 레지스터 변수 선언
+        window.currentActiveMobileTabId = 'sec-courts';
+
         function switchMobileTab(targetSectionId) {
             if(window.innerWidth >= 768) return;
+            
+            window.currentActiveMobileTabId = targetSectionId;
             document.querySelectorAll('.tab-section').forEach(sec => { sec.style.display = 'none'; });
+            
             const activeSection = document.getElementById(targetSectionId);
             if(activeSection) { activeSection.style.display = 'block'; activeSection.classList.remove('hidden'); }
+
+            // 🎯 [요구사항 해결]: 라이브 대진 탭으로 돌아오는 즉시 상단 혹은 하단 알림 레드 점 강제 소멸
+            if(targetSectionId === 'sec-courts') {
+                const b1 = document.getElementById('myMatchNotificationBadge');
+                const b2 = document.getElementById('myMatchNotificationBadgeSolid');
+                if(b1 && b2) { b1.classList.add('hidden'); b2.classList.add('hidden'); }
+            }
 
             const tabButtonMapping = {
                 'sec-courts': 'nav-tab-courts',
@@ -215,10 +247,10 @@
             }, 300);
         });
 
-        // 🎯 [요구 2 결함 해결]: 스크롤 간섭을 발생시키던 무지성 switchMobileTab 자동 호출 폭탄을 완전 제거!
         window.addEventListener('resize', () => {
             document.querySelectorAll('.tab-section').forEach(sec => {
                 if(window.innerWidth >= 768) { sec.style.display = 'block'; sec.classList.remove('hidden'); }
+                else { switchMobileTab(window.currentActiveMobileTabId); }
             });
         });
     </script>
