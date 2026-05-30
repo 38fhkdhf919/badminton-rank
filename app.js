@@ -561,19 +561,19 @@ function renderAttendanceBox(s) {
     });
 }
 
-// 글로벌 영역에 타이머 인터벌 핸들러 보관용 변수 선언 (함수 밖 최상단 근처에 두셔도 안전합니다)
 if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (실시간 매치 타이머 완전 이식판)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (관람 모드 차단 및 대기조 네온사인 패치 완결)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
     const currentMatches = s.currentMatches || []; const historyLog = s.historyLog || [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
-    const isTestMode = s.isTestMode === true;
+    
+    // 👤 현재 '일반 관람 모드' 상태인지 검사 (이름이 없거나 비어있는 경우 포함)
+    const isObserverMode = (myFixedName === "");
 
-    // 매 경기 상태가 변경될 때마다 기존 타이머 인터벌을 클리어하여 메모리 누수 방지
     if (window.liveMatchTimerInterval) { clearInterval(window.liveMatchTimerInterval); window.liveMatchTimerInterval = null; }
 
     if (s.status === "예정") {
@@ -616,48 +616,59 @@ function renderLiveCourtsGrid(s) {
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
         const cleanMyName = myFixedName.split('(')[0].trim();
         
-        const isMyMatch = cleanMyName !== "" && allMatchPlayerNames.includes(cleanMyName);
+        const isMyMatch = !isObserverMode && allMatchPlayerNames.includes(cleanMyName);
         const isLive = m.status === "진행중";
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
-        let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "border border-slate-200 bg-white";
-        if(isMyMatch) {
-            cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01]";
+        // 🎯 [요구사항 반영] 카드 스킨 빌드 규칙: 
+        // 진행 중이면 인디고 스킨, 대기 중이거나 내 경기라면 무조건 반짝이는 네온사인 효과(`my-neon-match-card`) 바인딩
+        let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "my-neon-match-card bg-amber-50/20";
+        if (isMyMatch) { cardBg = "my-neon-match-card bg-amber-50/40 scale-[1.01] border-amber-400"; }
+
+        // 🎯 [요구사항 반영] 버튼 표출 제어: 일반 관람 모드이거나 마스터 관리자가 아니라면 제어 단추 전면 삭제
+        let ctrlBtn = '';
+        if (!isObserverMode || window.isAdminMode) {
+            ctrlBtn = isLive 
+                ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
+                : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         }
-
-        const ctrlBtn = isLive 
-            ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
-            : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         
-        const aiBtn = (isLive && isTestMode && window.isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` : '';
-
-        // 🎯 [요구사항 반영]: 진행중일 때 경과 시간을 표시할 고유 타임 배지 스케일 마크업 주입
-        const timerBadge = isLive 
-            ? `<div class="flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-600 font-mono font-black text-[10px] px-2 py-0.5 rounded-md">
-                   <span class="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse-red"></span>
-                   <span class="match-live-stopwatch" data-start="${m.startedAt || Date.now()}">00:00</span>
-               </div>`
+        const aiBtn = (!isObserverMode && isLive && s.isTestMode && window.isAdminMode) 
+            ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` 
             : '';
 
+        let statusBadge = '';
+        if (isLive) {
+            statusBadge = `
+                <div class="flex items-center gap-1.5 text-rose-600 font-black text-xs">
+                    <span class="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse-red"></span>
+                    <span class="mr-1">⚡ 진행중</span>
+                    <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
+                </div>`;
+        } else {
+            // 아직 시작하지 않은 대진일 때 '입장해주세요' 문구를 노란색 점멸 배지로 우측 상단에 강제 고정
+            statusBadge = `
+                <div class="flex items-center justify-between w-full">
+                    <span class="text-[11px] font-black font-sans text-amber-600">⏳ 추천대진 ${idx + 1}순위 ${isMyMatch ? '🔥 내 경기!':''}</span>
+                    <span class="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-lg animate-pulse">🚨 코트에 입장해 주세요</span>
+                </div>`;
+        }
+
         return `
-            <div class="rounded-2xl p-4 border transition-all space-y-3.5 ${cardBg}">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-[10px] font-black font-sans text-indigo-600">${isLive ? '⚡ 진행중' : '⏳ 추천대진 ' + (idx + 1) + '순위'} ${isMyMatch ? '🔥 내 경기!':''}</span>
-                        ${timerBadge}
-                    </div>
+            <div class="bg-white rounded-2xl p-4 border transition-all space-y-3 ${cardBg}">
+                <div class="flex justify-between items-center border-b border-slate-100/80 pb-2">
+                    ${statusBadge}
                     <div class="flex items-center">${ctrlBtn}${aiBtn}</div>
                 </div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
-                    <div class="col-span-3 truncate text-left bg-slate-50 border border-slate-200/60 p-2 rounded-xl">${aNamesStr}</div>
+                    <div class="col-span-3 bg-slate-50 border border-slate-200/60 p-2 rounded-xl truncate">${aNamesStr}</div>
                     <div class="col-span-1 text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 truncate text-right bg-slate-50 border border-slate-200/60 p-2 rounded-xl">${bNamesStr}</div>
+                    <div class="col-span-3 bg-slate-50 border border-slate-200/60 p-2 rounded-xl truncate">${bNamesStr}</div>
                 </div>
             </div>`;
     }).join('');
 
-    // 🎯 [요구사항 반영]: 1초마다 스톱워치 타겟 노드들을 전부 스캔해서 실시간 분:초 연산 갱신
     const timerNodes = document.querySelectorAll('.match-live-stopwatch');
     if (timerNodes.length > 0) {
         const updateClocks = () => {
@@ -672,7 +683,7 @@ function renderLiveCourtsGrid(s) {
                 node.innerText = `${min}:${sec}`;
             });
         };
-        updateClocks(); // 첫 주기 즉시 가동
+        updateClocks();
         window.liveMatchTimerInterval = setInterval(updateClocks, 1000);
     }
 
@@ -692,9 +703,7 @@ function renderLiveCourtsGrid(s) {
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
             if(window.isAdminMode || names.includes(myFixedName)) {
-                // 🎯 경기 시작 버튼을 클릭한 시점의 시간초(타임스탬프)를 최초 생성하여 DB에 주입 기록
-                target.status = "진행중"; 
-                target.startedAt = Date.now();
+                target.status = "진행중"; target.startedAt = Date.now();
                 update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
@@ -702,22 +711,12 @@ function renderLiveCourtsGrid(s) {
 
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() {
-            const mId = this.getAttribute('data-id'); 
-            const target = currentMatches.find(x => x.id === mId); 
-            if(!target) return;
-            
+            const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
             const targetMatchNames = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
-            if (window.isAdminMode || targetMatchNames.includes(myFixedName)) {
-                openScoreModal(mId); 
-            } else {
-                alert("🔒 해당 경기의 출전 선수 4인 또는 마스터 관리자만 [경기 종료] 및 스코어 입력 권한이 있습니다!");
-            }
+            if (window.isAdminMode || targetMatchNames.includes(myFixedName)) { openScoreModal(mId); } 
+            else { alert("🔒 해당 경기의 출전 선수 4인 또는 마스터 관리자만 [경기 종료] 및 스코어 입력 권한이 있습니다!"); }
         };
-    });
-
-    document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
-        btn.onclick = function() { handleAiSimulatedMatchCalculation(this.getAttribute('data-id')); };
     });
 }
 
