@@ -20,7 +20,7 @@
             50% { 
                 border-color: #f59e0b; 
                 box-shadow: 0 0 22px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.4);
-                background-color: rgba(254, 243, 199, 0.45);
+                background-color: rgba(251, 191, 36, 0.05);
             }
         }
         .my-neon-match-card { 
@@ -29,8 +29,8 @@
         }
 
         @keyframes pulse-red {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.02); }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
         .animate-pulse-red { animation: pulse-red 1s infinite ease-in-out; }
 
@@ -40,75 +40,78 @@
         }
         .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
 
-        /* 📺 [TV 전광판 마스터 스킨]: 군더더기를 다 버리고 순수 대진 정보만 격자로 압축 고정 */
+        /* 📺 [TV 전광판 마스터 스킨 v2]: 무조건 가로 꽉 찬 세로 1열 종대 고정 */
         .tv-fullscreen-mode {
             position: fixed !important; inset: 0 !important; z-index: 9999 !important;
-            background-color: #090d16 !important; padding: 1.5rem !important;
+            background-color: #090d16 !important; padding: 2rem !important;
             display: flex !important; flex-direction: column !important; justify-content: flex-start !important;
             overflow: hidden !important;
         }
         
-        /* 전광판 구동 시 주변 텍스트, 타이틀 헤더, 대기열 상자 즉시 제거 블로킹 */
+        /* 전광판 구동 시 주변 인터페이스 완전 제거 */
         .tv-fullscreen-mode #unsubmittedAlertBox,
         .tv-fullscreen-mode #beforeStartStatsBox,
         .tv-fullscreen-mode h2 {
             display: none !important;
         }
 
-        /* 📊 가로/세로 비율에 맞춰 1열 또는 2열로 동적 융합되는 컨테이너 */
+        /* 📊 무조건 세로 1열 구조로 배치되도록 강제 고정 */
         .tv-fullscreen-mode #liveCourtsContainer {
-            display: grid !important; gap: 1.25rem !important; width: 100% !important; height: 100% !important;
-            /* 높이가 넓은 태블릿/세로 모니터는 1열, 일반 와이드 TV는 2열 배치를 위한 가변 셋업 */
-            grid-template-columns: repeat(auto-fit, minmax(48%, 1fr)) !important;
-            align-content: center !important;
-        }
-        
-        /* 화면이 세로로 아주 길거나 코트 수가 적을 때 1열 종대로 자동 정렬되도록 미디어 보완 */
-        @media (orientation: portrait) {
-            .tv-fullscreen-mode #liveCourtsContainer {
-                grid-template-columns: 1fr !important;
-            }
+            display: flex !important; flex-direction: column !important;
+            gap: 1.5rem !important; width: 100% !important; height: 100% !important;
+            justify-content: center !important;
         }
 
-        /* 🏟️ 대진 카드 자이언트 브랜딩 스킨 */
+        /* 🏟️ 대진 카드 자이언트 와이드 스킨 (높이는 코트 수에 따라 1/N 자동 분할) */
         .tv-fullscreen-mode .tv-card-unit {
             display: flex !important; flex-direction: column !important; justify-content: center !important;
-            height: 100% !important; min-height: 120px !important; padding: 1.75rem !important; 
-            background: #151f32 !important; border: 2px solid #243552 !important; border-radius: 1.5rem !important;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7) !important; color: #f8fafc !important;
+            flex: 1 !important; width: 100% !important; padding: 1.5rem 2.5rem !important; 
+            background: #111827 !important; border: 2px solid #1f2937 !important; border-radius: 1.5rem !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6) !important; color: #f8fafc !important;
+            box-sizing: border-box !important;
         }
         
-        /* 대진 카드 내부 헤더 스케일 업 */
-        .tv-fullscreen-mode .tv-card-header {
-            border-bottom: 2px solid #1e2d44 !important; padding-bottom: 0.75rem !important; margin-bottom: 1rem !important;
+        /* 🎯 [요구사항 이식]: 아직 시작 안 한 대기열 카드용 테두리 깜빡임 애니메이션 강제 주입 클래스 */
+        .tv-fullscreen-mode .tv-waiting-neon-border {
+            animation: neon-pulse 1.8s infinite ease-in-out !important;
+            border-width: 3px !important;
         }
 
-        /* 👥 선수 이름 명찰 박스 100% 가독성 보장 처리 */
+        .tv-fullscreen-mode .tv-card-header {
+            display: flex !important; justify-content: space-between !important; items-center !important;
+            border-bottom: 2px solid #1f2937 !important; padding-bottom: 0.5rem !important; margin-bottom: 0.75rem !important;
+        }
+
+        /* 👥 선수 이름 명찰 박스 크기 및 배역 전면 극대화 */
         .tv-fullscreen-mode .tv-player-row {
-            font-size: 2.2rem !important; font-weight: 900 !important; line-height: 1.2 !important;
+            display: grid !important; grid-template-columns: 3fr 1fr 3fr !important;
+            align-items: center !important; width: 100% !important; text-align: center !important;
         }
         .tv-fullscreen-mode .tv-team-box {
-            background-color: #0b111c !important; color: #ffffff !important; 
-            border: 2px solid #2e4366 !important; padding: 1.25rem !important; 
-            border-radius: 1.25rem !important; text-align: center !important;
-            white-space: normal !important; word-break: break-all !important;
-            display: flex !important; items-center !important; justify-content: center !important;
+            font-size: 2.5rem !important; font-weight: 900 !important; color: #ffffff !important; 
+            background-color: #030712 !important; border: 2px solid #374151 !important; 
+            padding: 1.5rem !important; border-radius: 1.5rem !important;
+            white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
         }
         .tv-fullscreen-mode .tv-vs-badge {
-            font-size: 2rem !important; color: #64748b !important; font-weight: 900 !important;
+            font-size: 2.2rem !important; color: #4b5563 !important; font-weight: 900 !important;
         }
 
-        /* 🛑 버튼 차단 및 타이머 스케일 조정 */
-        .tv-fullscreen-mode button, .tv-fullscreen-mode .btn-ai-simulate { display: none !important; }
-        .tv-fullscreen-mode .match-live-stopwatch { font-size: 2.2rem !important; font-weight: 900 !important; color: #f43f5e !important; }
-        .tv-fullscreen-mode .tv-status-txt { font-size: 1.4rem !important; font-weight: 900 !important; }
-        
-        /* 입장 알림 싸이렌 텍스트 */
-        .tv-entry-siren {
-            font-size: 1.6rem !important; font-weight: 900 !important; color: #f59e0b !important;
-            background: rgba(245, 158, 11, 0.1) !important; border: 2px solid #f59e0b !important;
-            padding: 0.4rem 1.2rem !important; border-radius: 1rem !important;
+        /* ⏱️ 컴팩트 타이머 셋업 (경기 시간 크기 최적화) */
+        .tv-fullscreen-mode .match-live-stopwatch { 
+            font-size: 1.8rem !important; font-weight: 900 !important; color: #ef4444 !important; 
+            background-color: #fef2f2 !important; padding: 0.2rem 1rem !important; border-radius: 0.75rem !important;
         }
+        .tv-fullscreen-mode .tv-status-txt { font-size: 1.3rem !important; font-weight: 900; }
+        
+        /* 🚨 입장해 주세요 사이렌 문구 */
+        .tv-entry-siren {
+            font-size: 1.5rem !important; font-weight: 900 !important; color: #fbbf24 !important;
+            animation: pulse-red 1s infinite ease-in-out;
+        }
+        
+        /* 버튼 원천 숨김 */
+        .tv-fullscreen-mode button, .tv-fullscreen-mode .btn-ai-simulate { display: none !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
@@ -196,6 +199,7 @@
             </div>
         </section>
 
+        <!-- 🏟️ [중앙 대진 채널 보드 구역] -->
         <section id="sec-courts" class="md:col-span-5 space-y-4 tab-section">
             <div id="unsubmittedAlertBox" class="hidden flex-col gap-2 bg-rose-50 border-2 border-rose-200 rounded-2xl p-3 shadow-3xs animate-pulse">
                 <h3 class="text-xs font-black text-rose-900 flex items-center gap-1">⚠️ 대진 종료 승리 점수 미입력 홀딩 건</h3>
@@ -248,6 +252,7 @@
         </section>
     </main>
 
+    <!-- 스코어 모달 -->
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
             <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
