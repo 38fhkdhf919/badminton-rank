@@ -862,7 +862,14 @@ function handleAiSimulatedMatchCalculation(matchId) {
     match.endedAt = Date.now();
 
     // 최종 정산 히스토리 로그에 결합 이주
-    historyLog.push(match);
+    if (
+            match.teamA &&
+            match.teamB &&
+            match.teamA.length === 2 &&
+            match.teamB.length === 2
+        ) {
+            historyLog.push(match);
+        }
 
     // 현재 구동 코트 밖 대기열 리스트 리빌딩 (완료된 매치 드롭)
     const nextMatches = currentMatches.filter(x => x.id !== matchId);
@@ -904,11 +911,24 @@ function recalculateLiveQueueMatch() {
     attendees.forEach(id => playCounts[id] = 0);
 
     historyLog.forEach(m => {
-        [...(m.teamA || []), ...(m.teamB || [])].forEach(id => {
+
+        if (
+            !m.teamA ||
+            !m.teamB ||
+            m.teamA.length !== 2 ||
+            m.teamB.length !== 2
+        ) {
+            return;
+        }
+    
+        [...m.teamA, ...m.teamB].forEach(id => {
+    
             if (playCounts[id] !== undefined) {
                 playCounts[id]++;
             }
+    
         });
+    
     });
 
     const activePlayCounts = attendees
