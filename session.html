@@ -40,22 +40,38 @@
         }
         .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
 
-        /* 🎯 [TV 전광판 스킨]: 버튼 타격 시 작동할 풀스크린 반응형 강제 고정 셋업 */
+        /* 🎯 [완벽한 전광판 스킨 교정]: 불필요한 날개 요소를 끄고 대진 카드만 화면에 매끄럽게 독점 배치 */
         .tv-fullscreen-mode {
             position: fixed !important; inset: 0 !important; z-index: 9999 !important;
-            background-color: #0f172a !important; padding: 1.5rem !important;
-            display: flex !important; flex-col: column !important; justify-content: center !important;
+            background-color: #0f172a !important; padding: 2rem !important;
+            display: flex !important; flex-direction: column !important; justify-content: center !important;
         }
+        
+        /* TV 전광판 모드 가동 시 주변 찌꺼기 보드들 완전 은폐 블로킹 */
+        .tv-fullscreen-mode #unsubmittedAlertBox,
+        .tv-fullscreen-mode #beforeStartStatsBox,
+        .tv-fullscreen-mode h2 {
+            display: none !important;
+        }
+
         .tv-fullscreen-mode #liveCourtsContainer {
-            display: grid !important; gap: 1.5rem !important; width: 100% !important; height: 100% !important;
+            display: grid !important; gap: 2rem !important; width: 100% !important; height: 100% !important;
             grid-template-columns: repeat(auto-fit, minmax(45%, 1fr)) !important;
-            align-content: center !important;
+            align-items: center !important; align-content: center !important;
         }
-        /* TV 모드 진입 시 글자 크기를 극대화하여 시인성 확보 */
-        .tv-fullscreen-mode .rounded-2xl { display: flex !important; flex-direction: column !important; justify-content: space-between !important; height: 100% !important; padding: 2.5rem !important; background: #1e293b !important; border-color: #334155 !important; color: #f8fafc !important;}
-        .tv-fullscreen-mode .grid-cols-7 { font-size: 2.5rem !important; line-height: 1.2 !important; margin-top: auto !important; margin-bottom: auto !important;}
-        .tv-fullscreen-mode .grid-cols-7 .bg-slate-50 { background-color: #0f172a !important; color: #f1f5f9 !important; border-color: #475569 !important; padding: 2rem !important; border-radius: 1.5rem !important; text-align: center !important;}
-        .tv-fullscreen-mode .match-live-stopwatch { font-size: 2rem !important; }
+        
+        /* 📺 멀리서도 무조건 잘 보이게 폰트 크기 및 격자판 높이 자이언트 스케일업 */
+        .tv-fullscreen-mode .rounded-2xl { 
+            display: flex !important; flex-direction: column !important; justify-content: space-between !important; 
+            height: 42vh !important; padding: 2.5rem !important; background: #1e293b !important; 
+            border-color: #334155 !important; color: #f8fafc !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+        }
+        .tv-fullscreen-mode .grid-cols-7 { font-size: 2.8rem !important; line-height: 1.2 !important; margin: auto 0 !important; }
+        .tv-fullscreen-mode .grid-cols-7 .bg-slate-50 { background-color: #0f172a !important; color: #f1f5f9 !important; border-color: #475569 !important; padding: 1.8rem !important; border-radius: 1.5rem !important; text-align: center !important; font-weight: 900 !important; }
+        .tv-fullscreen-mode .match-live-stopwatch { font-size: 2.2rem !important; }
+        .tv-fullscreen-mode span { color: #e2e8f0 !important; }
+        .tv-fullscreen-mode .text-indigo-600 { color: #818cf8 !important; font-size: 1.5rem !important; }
+        .tv-fullscreen-mode button { font-size: 1.5rem !important; padding: 1rem 2rem !important; border-radius: 1.25rem !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
@@ -96,7 +112,7 @@
             <span id="myMatchNotificationBadgeSolid" class="absolute top-0 right-3 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white hidden"></span>
         </button>
         <button onclick="switchMobileTab('sec-attendance')" id="nav-tab-attendance" class="flex flex-col items-center gap-1 text-slate-400 font-bold text-xs transition">
-            <span class="text-lg">👥</span> <span>출석/제외</span>
+            <span class="text-lg">👥</span> <span>출석 현황</span>
         </button>
         <button onclick="switchMobileTab('sec-stats')" id="nav-tab-stats" class="flex flex-col items-center gap-1 text-slate-400 font-bold text-xs transition">
             <span class="text-lg">📊</span> <span>기록/조회</span>
@@ -135,13 +151,10 @@
                         <h2 class="text-xs font-black text-slate-700 flex items-center gap-1.5"><span id="attendanceBoxTitle">👥 명단 및 쉼터 관리</span></h2>
                         <span id="attendeeCountLabel" class="text-[10px] font-mono font-bold bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">0명 참여</span>
                     </div>
-                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
+                    <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[240px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
                 
-                <div class="border-t border-slate-100 pt-3">
-                    <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2">🚨 대기열 제외 인원 (부상, 화장실 등)</h3>
-                    <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
-                </div>
+                <div class="hidden"><div id="restPlayersContainer"></div></div>
             </div>
         </section>
 
@@ -154,7 +167,6 @@
             <div class="space-y-3 relative">
                 <div class="flex justify-between items-center px-1">
                     <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">🏸 실시간 우선순위 대진 추천 현황</h2>
-                    
                     <button id="btnTvDisplayLauncher" class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-sans text-[10px] px-2.5 py-1 rounded-xl font-black shadow-3xs cursor-pointer hover:bg-indigo-100 transition-all">📺 공용 TV 전광판 모드 열기</button>
                 </div>
                 
@@ -213,7 +225,7 @@
                         </div>
                         <div class="flex items-center gap-1.5">
                             <button id="btnWinASelector" class="bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all">승리</button>
-                            <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-14 text-center bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-mono font-black text-sm outline-none">
+                            <input type="number" id="inputScoreA" min="0" placeholder="점수" class="w-16 text-center bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-mono font-black text-sm outline-none">
                         </div>
                     </div>
                     
@@ -259,7 +271,6 @@
             });
         }
 
-        // 🎯 [TV 모드 돔 토글 스크립트 이식]: 버튼 난타 시 레이아웃 상태 변경 감지
         const tvLauncher = document.getElementById('btnTvDisplayLauncher');
         if(tvLauncher) {
             tvLauncher.onclick = function(e) {
@@ -267,11 +278,10 @@
                 const targetArea = document.getElementById('sec-courts');
                 
                 if(!document.fullscreenElement) {
-                    // 브라우저 네이티브 풀스크린 가동 규칙 실행
                     document.documentElement.requestFullscreen().then(() => {
                         targetArea.classList.add('tv-fullscreen-mode');
                         tvLauncher.innerText = "❌ 전광판 모드 닫기 (Esc)";
-                        tvLauncher.className = "fixed bottom-6 right-6 z-[10000] bg-rose-600 text-white text-xs px-4 py-2.5 rounded-2xl font-black shadow-xl";
+                        tvLauncher.className = "fixed bottom-6 right-6 z-[10000] bg-rose-600 text-white text-xs px-4 py-2.5 rounded-2xl font-black shadow-xl cursor-pointer";
                     }).catch(err => { alert("전체화면 전환 실패: 기기 권한 부족"); });
                 } else {
                     document.exitFullscreen();
@@ -279,7 +289,6 @@
             };
         }
 
-        // ESC 키나 하단 뒤로가기로 풀스크린 아웃될 때 원래 복구 스킨 동기화
         document.addEventListener('fullscreenchange', () => {
             const targetArea = document.getElementById('sec-courts');
             if(!document.fullscreenElement) {
