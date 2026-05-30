@@ -21,7 +21,7 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 파이어베이스 /players 원격 창고 동기화
+// 📡 파이어베이스 /players 원격 데이터베이스 실시간 수신 링크
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
@@ -35,6 +35,7 @@ onValue(ref(db, 'players'), (snapshot) => {
             buildIdentityDropdown();
             if(window.currentActiveSession) {
                 renderAttendanceBox(window.currentActiveSession);
+                renderLiveCourtsGrid(window.currentActiveSession);
                 renderSessionRankTable(window.currentActiveSession);
             }
         }
@@ -51,13 +52,44 @@ function getNamesFromIds(ids, fallbackNames) {
 }
 
 // ==========================================
-// 🏢 대문 메인 대시보드 통제실
+// 🏢 대문 메인 대시보드 통제 코어
 // ==========================================
 window.initDashboardPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
+    
+    // 💡 [이스터에그 잠금 해제 인터페이스 구동 링]
     if (btnToggle) {
-        btnToggle.innerText = isAdminMode ? "🔓 관리자 모드 인증 해제" : "🔐 마스터 관리자 인증";
-        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5" : "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5";
+        // 이미 기인증 상태라면 즉시 잠금 해제 가시화
+        if (isAdminMode) {
+            btnToggle.innerText = "🔓 관리자 모드 인증 해제";
+            btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5 opacity-100 pointer-events-auto select-auto";
+        } else {
+            btnToggle.innerText = "🔐 마스터 관리자 인증";
+            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5 opacity-0 pointer-events-none select-none";
+        }
+
+        // 🎯 [핵심 기믹]: 로고 5연타 추적 카운터 결합
+        let clickCount = 0;
+        let lastClickTime = 0;
+        const triggerNode = document.getElementById('easterEggTrigger');
+
+        if (triggerNode) {
+            triggerNode.onclick = function() {
+                const currentTime = Date.now();
+                // 2.5초 이상 지체되면 카운터 리셋 벨트 작동
+                if (currentTime - lastClickTime > 2500) { clickCount = 0; }
+                
+                clickCount++;
+                lastClickTime = currentTime;
+
+                if (clickCount === 5) {
+                    alert("👑 시스템 코어 가드가 해제되었습니다. 마스터 인증 제어반이 개방됩니다.");
+                    btnToggle.classList.remove('opacity-0', 'pointer-events-none', 'select-none');
+                    btnToggle.classList.add('opacity-100', 'pointer-events-auto', 'select-auto', 'fire-rank-card');
+                    clickCount = 0; // 초기화
+                }
+            };
+        }
 
         btnToggle.onclick = function() {
             if (!isAdminMode) {
@@ -87,7 +119,7 @@ window.initDashboardPage = function() {
             container.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">개설된 정모 세션이 전혀 없습니다.</div>`;
             if (badgeCount) badgeCount.innerText = "0개 방";
             const tbody = document.getElementById('globalRankTableBody');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">개설된 정모 세션이 전혀 없습니다.</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">정모 데이터가 없어 누적 레이팅 통계가 비어있습니다.</td></tr>`;
             return;
         }
 
@@ -115,8 +147,7 @@ window.initDashboardPage = function() {
                         <p class="text-[11px] text-slate-400 font-mono">📅 정모일: ${displayDate} • 🎯 ${displayScore} • 참여: ${s.attendees ? s.attendees.length : 0}명</p>
                     </a>
                     ${delBtn}
-                </div>
-            `;
+                </div>`;
         }).join('');
 
         document.querySelectorAll('.btn-delete-session').forEach(btn => {
@@ -140,7 +171,7 @@ window.initDashboardPage = function() {
 
             set(ref(db, `sessions/${timeKey}`), {
                 status: "예정", title: title, date: dateVal, targetScore: scoreVal, courts: 2, isTestMode: isTest, createdAt: Date.now()
-            }).then(() => { alert(`🚀 정모방 생성 성공!`); window.location.reload(); });
+            }).then(() => { alert(`🚀 정모 리그 테이블 형성 완료!`); window.location.reload(); });
         };
     }
     const btnGlobalSrc = document.getElementById('btnGlobalSearchRecord');
@@ -177,7 +208,7 @@ function calculateGlobalLeaderboard(allSessions) {
                 <td class="py-2.5 px-4 text-center font-black text-slate-400 font-mono">${idx + 1}</td>
                 <td class="py-2.5 px-4 font-black text-indigo-950">${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.tier}조)</span></td>
                 <td class="py-2.5 px-4 text-center font-mono text-slate-500">${total}판</td>
-                <td class="py-2.5 px-4 text-center font-mono text-slate-600">${p.win}승 ${p.lose}패</td>
+                <td class="py-2.5 px-4 text-center font-mono text-slate-600">${p.win}승 / ${p.lose}패</td>
                 <td class="py-2.5 px-4 text-center font-mono font-black text-indigo-600">${total>0?Math.round(p.win/total*100):0}%</td>
                 <td class="py-2.5 px-4 text-right font-black font-mono text-slate-900">${p.baseMmr + p.deltaSum}점</td>
             </tr>`;
@@ -201,13 +232,29 @@ function calculateGlobalLeaderboard(allSessions) {
 }
 
 // ==========================================
-// 🏟️ 특정 정모 세션 제어 라이브 채널 코어
+// 🏟️ 실시간 라이브 정모 전광판 제어실 코어
 // ==========================================
 window.initSessionPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         btnToggle.innerText = isAdminMode ? "🔓 관리자 인증 해제" : "🔐 마스터 관리자 인증";
-        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1" : "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1";
+        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer";
+
+        // 세션 페이지 역시 타이틀 5연타 기믹 바인딩 결합
+        let clickCount = 0; let lastTime = 0;
+        const triggerNode = document.getElementById('sessionMainTitle');
+        if (triggerNode) {
+            triggerNode.onclick = function() {
+                const now = Date.now(); if (now - lastTime > 2500) { clickCount = 0; }
+                clickCount++; lastTime = now;
+                if (clickCount === 5) {
+                    alert("🔓 제어 권한 락이 해제되었습니다.");
+                    btnToggle.classList.remove('opacity-0', 'pointer-events-none', 'select-none');
+                    btnToggle.classList.add('opacity-100', 'pointer-events-auto', 'select-auto');
+                    clickCount = 0;
+                }
+            };
+        }
 
         btnToggle.onclick = function() {
             if (!isAdminMode) {
@@ -313,10 +360,9 @@ if(document.getElementById('inputKeyboardAttendance')) {
         if(e.key === 'Enter') {
             e.preventDefault(); const query = this.value.trim(); if(!query) return;
             const matched = window.allSystemPlayers.filter(x => x.name === query);
-            if(matched.length === 0) { alert("❌ 명단 오류"); return; }
+            if(matched.length === 0) { alert("❌ 등록되지 않은 이름 명단 오류"); return; }
             
             if(matched.length > 1) {
-                // 🎯 동명이인 나이 분기 선택 레이어 복원
                 const box = document.getElementById('duplicateSelectionBox'); const listWrapper = document.getElementById('duplicateListWrapper');
                 box.classList.remove('hidden');
                 listWrapper.innerHTML = matched.map(p => `<button data-id="${p.id}" class="btn-resolve-dup text-left w-full bg-slate-50 hover:bg-indigo-50 border p-1.5 font-bold rounded-lg text-[11px] text-slate-800">${p.name} (ID:${p.id} / ${p.tier}조)</button>`).join('');
@@ -413,18 +459,16 @@ function renderLiveCourtsGrid(s) {
     }
 
     if(s.status === "종료") {
-        if(historyLog.length === 0) { liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">기록 없음</div>`; return; }
+        if(historyLog.length === 0) { liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">금일 매치 전적 아카이브 로그가 비어있습니다.</div>`; return; }
         liveContainer.innerHTML = [...historyLog].reverse().map((m, idx) => {
             const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', '); const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
             const winA = m.scoreA > m.scoreB;
-            
-            // 🎯 완료 아카이브 뷰어 내 팀 스코어 컬러 링 테두리 교정 복원
             const borderA = winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
             const borderB = !winA ? "border-2 border-emerald-400 bg-emerald-50/10 shadow-sm" : "border border-rose-200 bg-rose-50/10";
 
             return `
                 <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-3xs space-y-2.5">
-                    <div class="text-[10px] font-mono text-slate-400">🏁 제 ${historyLog.length - idx}경기 최종 스코어</div>
+                    <div class="text-[10px] font-mono text-slate-400">🏁 제 ${historyLog.length - idx}경기 최종 결과</div>
                     <div class="grid grid-cols-2 gap-3 text-center text-xs">
                         <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderA}"><span>${aNames}</span> <span class="font-mono font-black">${m.scoreA}</span></div>
                         <div class="p-2 rounded-xl flex justify-between items-center font-bold ${borderB}"><span class="font-mono font-black">${m.scoreB}</span> <span>${bNames}</span></div>
@@ -434,14 +478,13 @@ function renderLiveCourtsGrid(s) {
         return;
     }
 
-    if (currentMatches.length === 0) { liveContainer.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs">매칭 연산 대기 중...</div>`; return; }
+    if (currentMatches.length === 0) { liveContainer.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs">코트 대기열 매칭 조합 컴파일 중...</div>`; return; }
 
     liveContainer.innerHTML = currentMatches.map((m, idx) => {
         if (m.status === "완료") return '';
         const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
         const aNamesStr = aNames.join(', '); const bNamesStr = bNames.join(', ');
         
-        // 🎯 내 경기 감지 로직 복원
         const isMyMatch = aNames.concat(bNames).includes(myFixedName) && myFixedName !== "";
         const isLive = m.status === "진행중";
         
@@ -452,7 +495,7 @@ function renderLiveCourtsGrid(s) {
             ? `<button data-id="${m.id}" class="btn-open-score bg-emerald-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">🛑 경기 종료</button>` 
             : `<button data-id="${m.id}" class="btn-start-match bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs">▶ 경기시작</button>`;
         
-        const aiBtn = (isLive && isTestMode && isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1">🤖 AI정산</button>` : '';
+        const aiBtn = (isLive && isTestMode && isAdminMode) ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` : '';
 
         return `
             <div class="rounded-2xl p-4 border transition-all space-y-3.5 ${cardBg}">
@@ -475,7 +518,7 @@ function renderLiveCourtsGrid(s) {
             
             if(isAdminMode || names.includes(myFixedName)) {
                 target.status = "진행중"; update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
-            } else { alert("🔒 당사자 본인이 아니거나 마스터 관리자가 아닙니다."); }
+            } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
     });
     document.querySelectorAll('.btn-open-score').forEach(btn => { btn.onclick = function() { openScoreModal(this.getAttribute('data-id')); }; });
@@ -521,7 +564,6 @@ function recalculateLiveQueueMatch() {
     let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => { [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }); });
 
-    // 🎯 대기열 핀포인트 대체 스와핑 로직 복원
     currentMatches = currentMatches.map(m => {
         if (m.status !== "대기") return m;
         let cleanA = m.teamA.filter(id => !restList.includes(id) && attendees.includes(id));
@@ -546,7 +588,6 @@ function recalculateLiveQueueMatch() {
             finalMatches.push({
                 id: `m_${Date.now()}_slot_${i}`, status: "대기", teamA: [p1, p2], teamB: [p3, p4], teamANames: getNamesFromIds([p1, p2]), teamBNames: getNamesFromIds([p3, p4])
             });
-            // 🎯 분신술 원천 격리 락 작동
             busyIds.add(p1); busyIds.add(p2); busyIds.add(p3); busyIds.add(p4);
         }
     }
@@ -565,8 +606,6 @@ function renderSessionRankTable(s) {
     });
 
     let list = Object.entries(map).map(([id, val]) => ({ id: parseInt(id), ...val })).sort((a, b) => b.win - a.win || b.scoreDiff - a.scoreDiff);
-    
-    // 🎯 고수 이글이글 불꽃 애니메이션 마킹 복원
     tbody.innerHTML = list.map((p, idx) => `<tr class="${idx===0&&p.win>0?'hot-player-card text-red-500 font-bold':''}"><td class="py-2 font-bold">${p.name}${idx===0&&p.win>0?' 🔥':''}</td><td>${p.win}승${p.lose}패</td><td class="text-indigo-600 font-bold">${p.win+p.lose>0?Math.round(p.win/(p.win+p.lose)*100):0}%</td><td>${p.scoreDiff>0?'+'+p.scoreDiff:p.scoreDiff}</td></tr>`).join('');
 }
 
@@ -607,14 +646,13 @@ if(document.getElementById('btnSubmitMatchScore')) {
     };
 }
 
-function executeLocalRecordSearch(queryName) {
+function borderTrackAssign(q) {
     const container = document.getElementById('localSearchResultContainer'); if(!container || window.allSystemPlayers.length === 0) return;
-    const query = queryName ? queryName.trim() : ""; if(!query) return;
+    const query = q ? q.trim() : ""; if(!query) return;
     localStorage.setItem("my_badminton_name", query);
     const historyLog = window.currentActiveSession ? (window.currentActiveSession.historyLog || []) : [];
     const filtered = historyLog.filter(m => getNamesFromIds(m.teamA, m.teamANames).includes(query) || getNamesFromIds(m.teamB, m.teamBNames).includes(query)).reverse();
     
-    // 🎯 개인 전적 일지 내 승패 초록색/적색 링 가드 복원
     container.innerHTML = filtered.map(m => {
         const winA = m.scoreA > m.scoreB;
         const borderA = winA ? "border border-emerald-400 bg-emerald-50/10" : "border border-rose-200 bg-rose-50/10";
@@ -628,6 +666,8 @@ function executeLocalRecordSearch(queryName) {
             </div>`;
     }).join('');
 }
+
+function executeLocalRecordSearch(queryName) { borderTrackAssign(queryName); }
 
 function executeGlobalRecordSearch() {
     const input = document.getElementById('inputGlobalSearchPlayer'); const container = document.getElementById('globalSearchResultContainer');
@@ -654,10 +694,8 @@ function bootAppEngine() {
     if (sessionUrlId) {
         window.currentSessionKey = sessionUrlId;
         window.initSessionPage();
-        console.log("🏟️ 세션 관제탑 시동 완료");
     } else if (document.getElementById('globalRankTableBody')) {
         window.initDashboardPage();
-        console.log("🏠 메인 대문 시동 완료");
     }
 }
 
