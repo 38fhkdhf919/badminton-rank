@@ -123,7 +123,11 @@
                     </div>
                     <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[240px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
-                <div class="hidden"><div id="restPlayersContainer"></div></div>
+                <!-- 🚨 대기열 제외 인원(쉼터) 명단 보드 완벽 복구 -->
+                <div class="border-t border-slate-100 pt-3">
+                    <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2">🚨 대기열 제외 인원 (부상, 화장실 등)</h3>
+                    <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
+                </div>
             </div>
         </section>
 
