@@ -892,51 +892,52 @@ function recalculateLiveQueueMatch() {
     const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
-    // 1. 경기 중인 인원 격리 (Busy IDs)
+    // 1. 경기 중인 인원 격리 (에러 방지: || [] 추가)
     let busyIds = new Set(restList);
-    currentMatches.forEach(m => {
+    (currentMatches || []).forEach(m => {
         if (m.status === "진행중" || m.status === "완료") {
-            m.teamA.forEach(id => busyIds.add(id));
-            m.teamB.forEach(id => busyIds.add(id));
+            (m.teamA || []).forEach(id => busyIds.add(id));
+            (m.teamB || []).forEach(id => busyIds.add(id));
         }
     });
 
-    // 2. 경기수 계산 및 쉼터 복귀자 보정
+    // 2. 경기수 계산 (보정값 적용)
     let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
-    historyLog.forEach(m => [...m.teamA, ...m.teamB].forEach(id => { if(playCounts[id] !== undefined) playCounts[id]++; }));
-    let activePlayCounts = attendees.filter(id => !restList.includes(id)).map(id => playCounts[id] || 0);
-    let maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
-    
-    let getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
-
-    // 3. 기존 대기열 업데이트 (진행중인 매치는 그대로 유지)
-    let finalMatches = currentMatches.filter(m => m.status === "진행중" || m.status === "완료");
-    let existingHoldMatches = currentMatches.filter(m => m.status === "대기");
-
-    // 4. [핵심 로직] 홀딩 대기열 처리 및 신규 대진 조립
-    // 이미 있는 홀딩 방의 멤버를 busyIds에 반영
-    existingHoldMatches.forEach(m => {
-        m.teamA.forEach(id => busyIds.add(id));
-        m.teamB.forEach(id => busyIds.add(id));
+    historyLog.forEach(m => {
+        [...(m.teamA || []), ...(m.teamB || [])].forEach(id => { 
+            if(playCounts[id] !== undefined) playCounts[id]++; 
+        });
     });
 
-    // 대기 가능한 인원 (경기수 적은 순)
+    let activePlayCounts = attendees.filter(id => !restList.includes(id)).map(id => playCounts[id] || 0);
+    let maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
+    let getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
+
+    // 3. 기존 대기열/홀딩 방 정리
+    let finalMatches = (currentMatches || []).filter(m => m.status === "진행중" || m.status === "완료");
+    let existingHoldMatches = (currentMatches || []).filter(m => m.status === "대기");
+
+    existingHoldMatches.forEach(m => {
+        (m.teamA || []).forEach(id => busyIds.add(id));
+        (m.teamB || []).forEach(id => busyIds.add(id));
+    });
+
+    // 4. 매칭 시작
     let freshQueue = attendees.filter(id => !busyIds.has(id)).sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
+    const sortedPlayers = [...window.allSystemPlayers].sort((a, b) => b.displayMmr - a.displayMmr);
 
-    // 코트가 남았다면 신규 홀딩 방 생성 루프
     while (finalMatches.length < maxCourts && freshQueue.length > 0) {
-        const anchorId = freshQueue[0]; // 1순위 유저
-        const sortedPlayers = [...window.allSystemPlayers].sort((a, b) => b.displayMmr - a.displayMmr);
-        const anchorRank = sortedPlayers.findIndex(p => p.id === anchorId) + 1;
+        const anchorId = freshQueue[0];
+        const anchorPlayer = window.allSystemPlayers.find(x => x.id === anchorId);
+        if (!anchorPlayer) { freshQueue.shift(); continue; }
 
-        // +- 4위 이내 라이벌 탐색
+        const anchorRank = sortedPlayers.findIndex(p => p.id === anchorId) + 1;
         let candidates = freshQueue.slice(1).filter(pId => {
             const pRank = sortedPlayers.findIndex(p => p.id === pId) + 1;
             return Math.abs(anchorRank - pRank) <= 4;
         });
 
         if (candidates.length >= 3) {
-            // 방 완성: [1등+4등] vs [2등+3등]
             const team = [anchorId, ...candidates.slice(0, 3)].map(id => window.allSystemPlayers.find(x => x.id === id))
                                                                 .sort((a, b) => b.displayMmr - a.displayMmr);
             const teamA = [team[0].id, team[3].id];
@@ -947,22 +948,20 @@ function recalculateLiveQueueMatch() {
                 teamA: teamA, teamB: teamB,
                 teamANames: getNamesFromIds(teamA), teamBNames: getNamesFromIds(teamB)
             });
-            candidates.slice(0, 3).forEach(id => busyIds.add(id));
-            busyIds.add(anchorId);
+            [anchorId, ...candidates.slice(0, 3)].forEach(id => busyIds.add(id));
         } else {
-            // 4명 안 모이면 홀딩 방 생성 (1순위 유저 가두기)
             finalMatches.push({
                 id: `hold_${anchorId}`, status: "대기",
                 teamA: [anchorId, ...candidates], teamB: [],
                 teamANames: getNamesFromIds([anchorId, ...candidates]), teamBNames: []
             });
             busyIds.add(anchorId);
+            candidates.forEach(id => busyIds.add(id));
         }
-        
-        // freshQueue 재정렬 (매칭된 사람 제외)
         freshQueue = freshQueue.filter(id => !busyIds.has(id));
     }
-
+    
+    // DB 업데이트
     update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
 }
 
