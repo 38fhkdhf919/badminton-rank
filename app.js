@@ -948,6 +948,7 @@ function recalculateLiveQueueMatch() {
 
     historyLog.forEach(m => {
 
+        // 실제 2:2 경기만 경기수 계산
         if (
             !m.teamA ||
             !m.teamB ||
@@ -956,15 +957,13 @@ function recalculateLiveQueueMatch() {
         ) {
             return;
         }
-    
+
         [...m.teamA, ...m.teamB].forEach(id => {
-    
             if (playCounts[id] !== undefined) {
                 playCounts[id]++;
             }
-    
         });
-    
+
     });
 
     const activePlayCounts = attendees
@@ -984,10 +983,12 @@ function recalculateLiveQueueMatch() {
         m => m.status === "진행중"
     );
 
+    // 홀딩방은 최대 1개만 인정
     let holdMatches = currentMatches.filter(
-        m => m.status === "대기" &&
-        (!m.teamB || m.teamB.length === 0)
-    );
+        m =>
+            m.status === "대기" &&
+            (!m.teamB || m.teamB.length === 0)
+    ).slice(0, 1);
 
     let busyIds = new Set(restList);
 
@@ -996,8 +997,18 @@ function recalculateLiveQueueMatch() {
         (m.teamB || []).forEach(id => busyIds.add(id));
     });
 
+    // 실제 경기 수만 계산
+    const getRealMatchCount = () => {
+        return finalMatches.filter(m =>
+            m.teamA &&
+            m.teamB &&
+            m.teamA.length === 2 &&
+            m.teamB.length === 2
+        ).length;
+    };
+
     // =========================
-    // 홀딩방 먼저 채우기
+    // 기존 홀딩방 우선 채우기
     // =========================
 
     let freePlayers = attendees
@@ -1075,7 +1086,7 @@ function recalculateLiveQueueMatch() {
     });
 
     // =========================
-    // 새 대기열 생성
+    // 신규 매칭 생성
     // =========================
 
     let freshQueue = attendees
@@ -1087,7 +1098,7 @@ function recalculateLiveQueueMatch() {
         );
 
     while (
-        finalMatches.length < maxCourts &&
+        getRealMatchCount() < maxCourts &&
         freshQueue.length > 0
     ) {
 
@@ -1146,14 +1157,22 @@ function recalculateLiveQueueMatch() {
 
         } else {
 
-            finalMatches.push({
-                id: `hold_${anchorId}`,
-                status: "대기",
-                teamA: group,
-                teamB: [],
-                teamANames: getNamesFromIds(group),
-                teamBNames: []
-            });
+            const alreadyHasHold =
+                finalMatches.some(m =>
+                    !m.teamB || m.teamB.length === 0
+                );
+
+            if (!alreadyHasHold) {
+
+                finalMatches.push({
+                    id: `hold_${anchorId}`,
+                    status: "대기",
+                    teamA: group,
+                    teamB: [],
+                    teamANames: getNamesFromIds(group),
+                    teamBNames: []
+                });
+            }
         }
 
         group.forEach(id => busyIds.add(id));
