@@ -562,7 +562,7 @@ function renderAttendanceBox(s) {
 }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (네온 효과 및 백그라운드 배지 알림 탑재)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (네온 깜빡임 & 탭 알림 버그 완전 패치판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
@@ -597,24 +597,31 @@ function renderLiveCourtsGrid(s) {
 
     if (currentMatches.length === 0) { liveContainer.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs">코트 대기열 매칭 조합 컴파일 중...</div>`; return; }
 
-    // 🎯 내 매칭이 추천 리스트에 실시간 포착되었는지 여부를 계측하는 내부 플래그 레지스터
+    // 🎯 내 매칭 감지 레이더 플래그 초기화
     let isMyMatchDetectedInList = false;
 
     liveContainer.innerHTML = currentMatches.map((m, idx) => {
         if (m.status === "완료") return '';
-        const aNames = getNamesFromIds(m.teamA, m.teamANames); const bNames = getNamesFromIds(m.teamB, m.teamBNames);
-        const aNamesStr = aNames.join(', '); const bNamesStr = bNames.join(', ');
         
-        const isMyMatch = aNames.concat(bNames).includes(myFixedName) && myFixedName !== "";
+        // 🚨 [이름 일치 버그 해결]: teamANames 배열 내부에서 문자열 가공 없이 이름만 정확하게 추출
+        const aNames = getNamesFromIds(m.teamA, m.teamANames); 
+        const bNames = getNamesFromIds(m.teamB, m.teamBNames);
+        const aNamesStr = aNames.join(', '); 
+        const bNamesStr = bNames.join(', ');
+        
+        // 이름 뒤에 괄호나 공백이 붙어 있어도 완벽하게 필터링하도록 정밀 검증 진행
+        const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
+        const cleanMyName = myFixedName.split('(')[0].trim();
+        
+        const isMyMatch = cleanMyName !== "" && allMatchPlayerNames.includes(cleanMyName);
         const isLive = m.status === "진행중";
         
-        // 내 경기이고 활성화 진행 타겟인 경우 플래그 승인
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
-        // 🎯 [요구사항 반영]: 내 경기 카드인 경우 테일윈드 고정 보더를 해제하고 커스텀 'my-neon-match-card' 애니메이션 클래스 단독 부여
-        let cardBg = isLive ? "border-indigo-400 bg-indigo-50/40 shadow-md" : "border-slate-200 bg-white";
+        // 🎯 [네온 보강]: 테일윈드 보더 클래스와 충돌하지 않도록 스타일 구조 분리 결합 보완
+        let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "border border-slate-200 bg-white";
         if(isMyMatch) {
-            cardBg = "my-neon-match-card scale-[1.01] shadow-xl";
+            cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01]";
         }
 
         const ctrlBtn = isLive 
@@ -625,28 +632,26 @@ function renderLiveCourtsGrid(s) {
 
         return `
             <div class="rounded-2xl p-4 border transition-all space-y-3.5 ${cardBg}">
-                <div class="flex justify-between items-center border-b pb-1.5">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
                     <span class="text-[10px] font-black font-sans text-indigo-600">${isLive ? '⚡ 진행중' : '⏳ 추천대진 ' + (idx + 1) + '순위'} ${isMyMatch ? '🔥 내 경기!':''}</span>
                     <div class="flex items-center">${ctrlBtn}${aiBtn}</div>
                 </div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
-                    <div class="col-span-3 truncate text-left bg-slate-50 border p-2 rounded-xl">${aNamesStr}</div>
+                    <div class="col-span-3 truncate text-left bg-slate-50 border border-slate-200/60 p-2 rounded-xl">${aNamesStr}</div>
                     <div class="col-span-1 text-slate-300 font-mono">VS</div>
-                    <div class="col-span-3 truncate text-right bg-slate-50 border p-2 rounded-xl">${bNamesStr}</div>
+                    <div class="col-span-3 truncate text-right bg-slate-50 border border-slate-200/60 p-2 rounded-xl">${bNamesStr}</div>
                 </div>
             </div>`;
     }).join('');
 
-    // 🎯 [요구사항 반영]: 현재 유저가 다른 탭에 체류 중일 때 내 경기가 잡히면 하단에 알림 배지 온오프 판단 코어
+    // 🎯 [요구사항 버그 해결]: 실시간 이름 매칭 통과 후 타 탭 체류 시 알림 점 완벽 제어
     const b1 = document.getElementById('myMatchNotificationBadge');
     const b2 = document.getElementById('myMatchNotificationBadgeSolid');
     if (b1 && b2) {
-        // 내 대진이 있고, 현재 모바일 활성 화면이 '라이브 대진(sec-courts)'이 아닐 때만 빨간 불 켜기
         if (isMyMatchDetectedInList && window.currentActiveMobileTabId !== 'sec-courts') {
             b1.classList.remove('hidden');
             b2.classList.remove('hidden');
         } else {
-            // 대진이 빠졌거나 내 탭이 대진 탭으로 원복되면 즉시 소멸
             b1.classList.add('hidden');
             b2.classList.add('hidden');
         }
