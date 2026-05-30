@@ -999,20 +999,23 @@ function handleAiSimulatedMatchCalculation(matchId) {
     });
 }
 
-// 🎯 GPT 피드백: 팀 조합 히스토리를 분석하여 최적의 조합을 반환하는 내포 함수 선언
+// 🎯 팀 조합 히스토리를 분석하여 최적의 조합을 반환하는 내포 함수 (타입 가드 완료)
 function createBalancedTeamsWithHistory(group, historyLog) {
+    // 🎯 ID 데이터 타입을 숫자로 강제 통일하여 비교 연산 오류 방어
+    const cleanGroup = group.map(id => parseInt(id));
+
     const combos = [
         [
-            [group[0], group[3]],
-            [group[1], group[2]]
+            [cleanGroup[0], cleanGroup[3]],
+            [cleanGroup[1], cleanGroup[2]]
         ],
         [
-            [group[0], group[2]],
-            [group[1], group[3]]
+            [cleanGroup[0], cleanGroup[2]],
+            [cleanGroup[1], cleanGroup[3]]
         ],
         [
-            [group[0], group[1]],
-            [group[2], group[3]]
+            [cleanGroup[0], cleanGroup[1]],
+            [cleanGroup[2], cleanGroup[3]]
         ]
     ];
 
@@ -1028,15 +1031,13 @@ function createBalancedTeamsWithHistory(group, historyLog) {
     const countPairHistory = (p1, p2) => {
         let count = 0;
         recentMatches.forEach(m => {
-            const teams = [
-                m.teamA,
-                m.teamB
-            ];
+            // 비교 대상을 모두 정수로 파싱하여 타입 불일치 버그 원천 차단
+            const teamA = (m.teamA || []).map(id => parseInt(id));
+            const teamB = (m.teamB || []).map(id => parseInt(id));
+            const teams = [teamA, teamB];
+            
             teams.forEach(team => {
-                if (
-                    team.includes(p1) &&
-                    team.includes(p2)
-                ) {
+                if (team.includes(parseInt(p1)) && team.includes(parseInt(p2))) {
                     count++;
                 }
             });
@@ -1072,8 +1073,10 @@ function recalculateLiveQueueMatch() {
     if (!s || s.status !== "진행중" || window.allSystemPlayers.length === 0) return;
 
     let currentMatches = s.currentMatches || [];
-    const attendees = s.attendees || [];
-    const restList = s.restPlayers || [];
+    
+    // 🎯 [타입 싱크 마스터 패치]: attendees와 restList 내부의 모든 ID를 즉시 정수 배열로 강제 가공합니다.
+    const attendees = (s.attendees || []).map(id => parseInt(id));
+    const restList = (s.restPlayers || []).map(id => parseInt(id));
     const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
@@ -1082,14 +1085,13 @@ function recalculateLiveQueueMatch() {
 
     const rankMap = {};
     sortedPlayers.forEach((p, idx) => {
-        rankMap[p.id] = idx + 1;
+        if (p && p.id) rankMap[parseInt(p.id)] = idx + 1;
     });
 
     let playCounts = {};
     attendees.forEach(id => playCounts[id] = 0);
 
     historyLog.forEach(m => {
-        // 실제 2:2 경기만 경기수 계산
         if (
             !m.teamA ||
             !m.teamB ||
@@ -1099,7 +1101,8 @@ function recalculateLiveQueueMatch() {
             return;
         }
 
-        [...m.teamA, ...m.teamB].forEach(id => {
+        const matchPlayers = [...m.teamA, ...m.teamB].map(id => parseInt(id));
+        matchPlayers.forEach(id => {
             if (playCounts[id] !== undefined) {
                 playCounts[id]++;
             }
@@ -1121,23 +1124,19 @@ function recalculateLiveQueueMatch() {
     const getRecentPartnerMap = () => {
         const map = {};
         
-        // 실제 2:2 경기 기록만 역순 필터링
         const validMatches = historyLog.filter(m => 
             m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
         );
         
-        // 최근 가동된 코트 수(maxCourts)만큼의 경기 배열 추출 (최근 한 사이클)
         const recentCycleMatches = validMatches.slice(-maxCourts);
 
-        // 추출된 최근 한 사이클 경기를 돌며 같은 경기에 뛴 모든 동반자 관계를 누적 저장
         recentCycleMatches.forEach(m => {
-            const players = [...m.teamA, ...m.teamB];
+            const players = [...m.teamA, ...m.teamB].map(id => parseInt(id));
             
             players.forEach(player => {
                 if (!map[player]) {
                     map[player] = [];
                 }
-                // 같은 경기에 참여했던 상대 및 파트너 ID 누적 push
                 players.forEach(id => {
                     if (id !== player && !map[player].includes(id)) {
                         map[player].push(id);
@@ -1152,41 +1151,35 @@ function recalculateLiveQueueMatch() {
     const recentPartnerMap = getRecentPartnerMap();
 
     const canJoinGroup = (candidate, group) => {
+        const cId = parseInt(candidate);
         for (const member of group) {
-            const recent = recentPartnerMap[member] || [];
-            if (recent.includes(candidate)) {
+            const mId = parseInt(member);
+            const recent = recentPartnerMap[mId] || [];
+            if (recent.includes(cId)) {
                 return false;
             }
         }
         return true;
     };
 
-    // 진행중 경기만 유지
     let finalMatches = currentMatches.filter(
         m => m.status === "진행중"
     );
 
-    // 홀딩방은 최대 1개만 인정
     let holdMatches = currentMatches.filter(
-        m =>
-            m.status === "대기" &&
-            (!m.teamB || m.teamB.length === 0)
+        m => m.status === "대기" && (!m.teamB || m.teamB.length === 0)
     ).slice(0, 1);
 
     let busyIds = new Set(restList);
 
     finalMatches.forEach(m => {
-        (m.teamA || []).forEach(id => busyIds.add(id));
-        (m.teamB || []).forEach(id => busyIds.add(id));
+        (m.teamA || []).forEach(id => busyIds.add(parseInt(id)));
+        (m.teamB || []).forEach(id => busyIds.add(parseInt(id)));
     });
 
-    // 실제 경기 수만 계산
     const getRealMatchCount = () => {
         return finalMatches.filter(m =>
-            m.teamA &&
-            m.teamB &&
-            m.teamA.length === 2 &&
-            m.teamB.length === 2
+            m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
         ).length;
     };
 
@@ -1196,41 +1189,43 @@ function recalculateLiveQueueMatch() {
     let freePlayers = attendees.filter(id => !busyIds.has(id));
 
     holdMatches.forEach(hold => {
-        let group = [...(hold.teamA || [])];
+        let group = (hold.teamA || []).map(id => parseInt(id));
         group.forEach(id => busyIds.add(id));
 
         while (group.length < 4) {
             const anchorRank = rankMap[group[0]];
 
             let candidate = freePlayers.find(id => {
-                if (group.includes(id)) return false;
-                const rank = rankMap[id];
+                const cId = parseInt(id);
+                if (group.includes(cId)) return false;
+                const rank = rankMap[cId];
                 if (Math.abs(rank - anchorRank) > 4) return false;
-                return canJoinGroup(id, group);
+                return canJoinGroup(cId, group);
             });
 
-            // 실패 시 최근경기 중복 허용
             if (!candidate) {
                 candidate = freePlayers.find(id => {
-                    if (group.includes(id)) return false;
-                    const rank = rankMap[id];
+                    const cId = parseInt(id);
+                    if (group.includes(cId)) return false;
+                    const rank = rankMap[cId];
                     return Math.abs(rank - anchorRank) <= 4;
                 });
             }
 
             if (!candidate) break;
 
-            group.push(candidate);
-            busyIds.add(candidate);
-            freePlayers = freePlayers.filter(x => x !== candidate);
+            const finalCandidateId = parseInt(candidate);
+            group.push(finalCandidateId);
+            busyIds.add(finalCandidateId);
+            freePlayers = freePlayers.filter(x => parseInt(x) !== finalCandidateId);
         }
 
         if (group.length === 4) {
             const players = group
                 .map(id => window.allSystemPlayers.find(p => p.id === id))
+                .filter(Boolean)
                 .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            // 🎯 GPT 피드백 교체 구역 1 (기존 1+4 고정 분할을 과거 이력 추적형으로 분기 변경)
             const teamResult = createBalancedTeamsWithHistory(
                 players.map(p => p.id),
                 historyLog
@@ -1271,7 +1266,6 @@ function recalculateLiveQueueMatch() {
         const anchorRank = rankMap[anchorId];
         let group = [anchorId];
 
-        // 1차 : 직전 경기 중복 회피
         for (let i = 1; i < freshQueue.length; i++) {
             const candidate = freshQueue[i];
             const rank = rankMap[candidate];
@@ -1283,7 +1277,6 @@ function recalculateLiveQueueMatch() {
             if (group.length === 4) break;
         }
 
-        // 2차 : 부족하면 중복 허용
         if (group.length < 4) {
             for (let i = 1; i < freshQueue.length; i++) {
                 const candidate = freshQueue[i];
@@ -1300,9 +1293,9 @@ function recalculateLiveQueueMatch() {
         if (group.length === 4) {
             const players = group
                 .map(id => window.allSystemPlayers.find(p => p.id === id))
+                .filter(Boolean)
                 .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            // 🎯 GPT 피드백 교체 구역 2 (신규 매칭 4인 완료 시 조합 자동 선택)
             const teamResult = createBalancedTeamsWithHistory(
                 players.map(p => p.id),
                 historyLog
