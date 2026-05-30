@@ -192,16 +192,25 @@ function calculateGlobalLeaderboard(allSessions) {
 
     let aggregateMap = {};
     window.allSystemPlayers.forEach(p => {
-        aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
+        if (p && p.id) {
+            aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr || 1000, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
+        }
     });
 
-    const sortedSessions = Object.entries(allSessions).sort((a,b) => a[1].createdAt - b[1].createdAt);
+    // 🎯 [먹통 버그 수정]: 빈 세션 객체 방어막 구축 (filter(Boolean) 및 데이터 검증 추가)
+    const sortedSessions = Object.entries(allSessions || {})
+        .filter(([_, s]) => s && s.createdAt)
+        .sort((a,b) => a[1].createdAt - b[1].createdAt);
+        
     sortedSessions.forEach(([sKey, s]) => {
-        if (s.statsLog) {
+        // statsLog가 존재하고 유효한 데이터가 있을 때만 루프 연산 실행
+        if (s && s.statsLog && Object.keys(s.statsLog).length > 0) {
             Object.entries(s.statsLog).forEach(([pId, log]) => {
                 const player = aggregateMap[pId];
-                if (player) {
-                    player.win += (log.win || 0); player.lose += (log.lose || 0); player.deltaSum += (log.delta || 0);
+                if (player && log) {
+                    player.win += (log.win || 0); 
+                    player.lose += (log.lose || 0); 
+                    player.deltaSum += (log.delta || 0);
                     player.historyTimeline.push(player.baseMmr + player.deltaSum);
                 }
             });
@@ -209,6 +218,13 @@ function calculateGlobalLeaderboard(allSessions) {
     });
 
     let sortedList = Object.values(aggregateMap).sort((a, b) => (b.baseMmr + b.deltaSum) - (a.baseMmr + a.deltaSum));
+    
+    // 🎯 [먹통 버그 수정]: 리스트가 비어있을 경우 예외 출력 방어 코드
+    if (sortedList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">조회 가능한 통합 레이팅 데이터가 없습니다.</td></tr>`;
+        return;
+    }
+
     tbody.innerHTML = sortedList.map((p, idx) => {
         const total = p.win + p.lose;
         return `
@@ -225,10 +241,13 @@ function calculateGlobalLeaderboard(allSessions) {
     document.querySelectorAll('.btn-open-trend-chart').forEach(tr => {
         tr.onclick = function() {
             const pId = this.getAttribute('data-id'); const pName = this.getAttribute('data-name');
-            const timeline = JSON.parse(this.getAttribute('data-timeline'));
+            const timelineStr = this.getAttribute('data-timeline');
+            if (!timelineStr) return;
+            
+            const timeline = JSON.parse(timelineStr);
             document.getElementById('modalPlayerTitle').innerText = `🏆 [${pName}] 회원 MMR 성장 곡선`;
             document.getElementById('chartModal').classList.remove('hidden');
-            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId].baseMmr];
+            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId]?.baseMmr || 1000];
             const ctx = document.getElementById('playerTrendChart').getContext('2d');
             if (activeChartInstance) activeChartInstance.destroy();
             activeChartInstance = new Chart(ctx, {
