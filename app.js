@@ -235,12 +235,15 @@ function calculateGlobalLeaderboard(allSessions) {
     });
 }
 
+// ==========================================
+// 🏟️ 특정 정모 세션 제어 라이브 채널 코어 (함수 전체)
+// ==========================================
 window.initSessionPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     const wrapper = document.getElementById('adminButtonWrapper');
     
     if (btnToggle && wrapper) {
-        // 🎯 [요구 1 보완]: 기인증 관리자면 새로고침 시에도 높이 공간 즉각 복원 자동 표출
+        // [인증 동기화 인터페이스 링 부팅 리액션]
         if (window.isAdminMode) {
             btnToggle.innerText = "🔓 관리자 인증 해제";
             btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1";
@@ -248,32 +251,45 @@ window.initSessionPage = function() {
             wrapper.style.marginTop = "0.25rem";
         } else {
             btnToggle.innerText = "🔐 마스터 관리자 인증";
-            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer flex items-center gap-1";
+            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1";
             wrapper.style.height = "0px";
             wrapper.style.marginTop = "0px";
         }
 
-        // 🎯 [요구 1 반영]: 알림창 없이 세션 페이지 타이틀 5연타 즉시 공간 슬라이딩 오픈
-        let clickCount = 0; let lastTime = 0;
-        const triggerNode = document.getElementById('sessionMainTitle');
-        if (triggerNode) {
-            triggerNode.onclick = function() {
-                const now = Date.now(); if (now - lastTime > 2500) { clickCount = 0; }
-                clickCount++; lastTime = now;
-                if (clickCount === 5) {
-                    wrapper.style.height = "34px";
-                    wrapper.style.marginTop = "0.25rem";
-                    btnToggle.classList.add('fire-rank-card');
-                    clickCount = 0;
-                }
-            };
-        }
+        // 🎯 알림창 원천 제거 및 타이틀 5연타 가변 컨테이너 바인딩 보정
+        let clickCount = 0; 
+        let lastTime = 0;
+        
+        const bindTriggerLoop = setInterval(() => {
+            const triggerNode = document.getElementById('sessionMainTitle');
+            if (triggerNode) {
+                clearInterval(bindTriggerLoop);
+                triggerNode.onclick = function() {
+                    const now = Date.now(); 
+                    if (now - lastTime > 2500) { clickCount = 0; }
+                    clickCount++; 
+                    lastTime = now;
+                    
+                    if (clickCount === 5) {
+                        wrapper.style.height = "34px";
+                        wrapper.style.marginTop = "0.25rem";
+                        btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer flex items-center gap-1 fire-rank-card";
+                        clickCount = 0;
+                    }
+                };
+            }
+        }, 100);
 
         btnToggle.onclick = function() {
             if (!window.isAdminMode) {
-                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { window.isAdminMode = true; localStorage.setItem("badminton_admin_login", "true"); }
-                else { alert("비밀번호 에러!"); return; }
-            } else { window.isAdminMode = false; localStorage.setItem("badminton_admin_login", "false"); }
+                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { 
+                    window.isAdminMode = true; 
+                    localStorage.setItem("badminton_admin_login", "true"); 
+                } else { alert("비밀번호 에러!"); return; }
+            } else { 
+                window.isAdminMode = false; 
+                localStorage.setItem("badminton_admin_login", "false"); 
+            }
             window.location.reload();
         };
     }
@@ -296,7 +312,7 @@ window.initSessionPage = function() {
 
         const adminPanel = document.getElementById('adminPanel');
         const btnToggleStatus = document.getElementById('btnToggleStatus');
-        if (isAdminMode && adminPanel && btnToggleStatus) {
+        if (window.isAdminMode && adminPanel && btnToggleStatus) {
             adminPanel.classList.remove('hidden'); adminPanel.classList.add('flex');
             btnToggleStatus.innerText = s.status === "예정" ? "▶️ 정모 매칭 가동 시작" : (s.status === "진행중" ? "🛑 오늘 정모 최종 마감/종료" : "🔒 정모 폐쇄됨");
             btnToggleStatus.disabled = s.status === "종료";
@@ -308,7 +324,7 @@ window.initSessionPage = function() {
         }
 
         const keyboardInputWrapper = document.getElementById('adminOnlyAttendanceInputWrapper');
-        if(keyboardInputWrapper) keyboardInputWrapper.style.display = (isAdminMode && s.status !== "종료") ? 'block' : 'none';
+        if(keyboardInputWrapper) keyboardInputWrapper.style.display = (window.isAdminMode && s.status !== "종료") ? 'block' : 'none';
 
         const beforeStatsBox = document.getElementById('beforeStartStatsBox');
         const liveStatsWrapper = document.getElementById('liveStatsActiveWrapper');
@@ -321,7 +337,7 @@ window.initSessionPage = function() {
         }
 
         const configBox = document.getElementById('adminConfigBox');
-        if(configBox && isAdminMode) {
+        if(configBox && window.isAdminMode) {
             configBox.style.display = 'flex'; configBox.classList.remove('hidden');
             const selCourts = document.getElementById('selectLiveCourts');
             const inpScore = document.getElementById('inputLiveTargetScore');
@@ -344,11 +360,33 @@ window.initSessionPage = function() {
         }
     });
 
+    // 🎯 원터치형 [승리] 버튼 스코어 주입 기믹 활성화
     setTimeout(() => {
-        const radioA = document.getElementById('radioWinA'); const radioB = document.getElementById('radioWinB');
-        if(radioA && radioB) {
-            radioA.onchange = function() { if(this.checked && window.currentActiveSession) { document.getElementById('inputScoreA').value = window.currentActiveSession.targetScore || 25; document.getElementById('inputScoreB').value = ''; } };
-            radioB.onchange = function() { if(this.checked && window.currentActiveSession) { document.getElementById('inputScoreB').value = window.currentActiveSession.targetScore || 25; document.getElementById('inputScoreA').value = ''; } };
+        const btnWinA = document.getElementById('btnWinASelector');
+        const btnWinB = document.getElementById('btnWinBSelector');
+        
+        if (btnWinA && btnWinB) {
+            btnWinA.onclick = function(e) {
+                e.preventDefault();
+                const maxScore = window.currentActiveSession?.targetScore || 25;
+                document.getElementById('inputScoreA').value = maxScore;
+                document.getElementById('inputScoreB').value = "";
+                btnWinA.className = "bg-indigo-600 text-white font-black px-2.5 py-1.5 rounded-lg border border-indigo-600 transition-all";
+                btnWinB.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
+                btnWinA.setAttribute('data-winner', 'true');
+                btnWinB.removeAttribute('data-winner');
+            };
+            
+            btnWinB.onclick = function(e) {
+                e.preventDefault();
+                const maxScore = window.currentActiveSession?.targetScore || 25;
+                document.getElementById('inputScoreB').value = maxScore;
+                document.getElementById('inputScoreA').value = "";
+                btnWinB.className = "bg-emerald-600 text-white font-black px-2.5 py-1.5 rounded-lg border border-emerald-600 transition-all";
+                btnWinA.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
+                btnWinB.setAttribute('data-winner', 'true');
+                btnWinA.removeAttribute('data-winner');
+            };
         }
     }, 800);
 };
@@ -640,21 +678,60 @@ function openScoreModal(mId) {
     scoreModalTargetMatchId = mId; const m = window.currentActiveSession.currentMatches.find(x => x.id === mId); if (!m) return;
     document.getElementById('modalTeamANames').innerText = getNamesFromIds(m.teamA, m.teamANames).join(', ');
     document.getElementById('modalTeamBNames').innerText = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
-    document.getElementById('radioWinA').checked = false; document.getElementById('radioWinB').checked = false;
-    document.getElementById('inputScoreA').value = ''; document.getElementById('inputScoreB').value = '';
+    
+    // 모달이 열릴 때 이전 판의 승리 체크 이력 스타일 및 데이터 초기화
+    const btnWinA = document.getElementById('btnWinASelector');
+    const btnWinB = document.getElementById('btnWinBSelector');
+    if (btnWinA && btnWinB) {
+        btnWinA.removeAttribute('data-winner');
+        btnWinB.removeAttribute('data-winner');
+        btnWinA.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
+        btnWinB.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
+    }
+    
+    document.getElementById('inputScoreA').value = ''; 
+    document.getElementById('inputScoreB').value = '';
     document.getElementById('scoreModal').classList.remove('hidden');
 }
 
+// ==========================================
+// 💾 경기 결과 최종 확정 및 전송 제어 (블록 전체)
+// ==========================================
 if(document.getElementById('btnSubmitMatchScore')) {
     document.getElementById('btnSubmitMatchScore').onclick = function() {
-        const sel = document.querySelector('input[name="winnerSelect"]:checked')?.value; if(!sel) { alert("승리팀 체크 필수!"); return; }
-        const sA = parseInt(document.getElementById('inputScoreA').value); const sB = parseInt(document.getElementById('inputScoreB').value);
-        if (isNaN(sA) || isNaN(sB) || sA === sB) { alert("점수 기입 에러!"); return; }
+        const btnWinA = document.getElementById('btnWinASelector');
+        const btnWinB = document.getElementById('btnWinBSelector');
+        let sel = "";
+        if (btnWinA.hasAttribute('data-winner')) sel = "A";
+        if (btnWinB.hasAttribute('data-winner')) sel = "B";
+        
+        if(!sel) { alert("🥇 어느 팀이 승리했는지 [승리] 버튼을 선택해 주세요!"); return; }
+        
+        const sA = parseInt(document.getElementById('inputScoreA').value); 
+        const sB = parseInt(document.getElementById('inputScoreB').value);
+        if (isNaN(sA) || isNaN(sB) || sA === sB) { alert("❌ 양 팀 점수를 정확히 입력해 주세요. (무승부 불가)"); return; }
+        if (sel === 'A' && sA < sB) { alert("⚠️ TEAM A가 승리팀으로 마킹되었으나 점수가 더 낮습니다."); return; }
+        if (sel === 'B' && sB < sA) { alert("⚠️ TEAM B가 승리팀으로 마킹되었으나 점수가 더 낮습니다."); return; }
 
-        const s = window.currentActiveSession; let currentMatches = s.currentMatches || []; let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
-        const mIdx = currentMatches.findIndex(x => x.id === scoreModalTargetMatchId); if (mIdx === -1) return;
+        const s = window.currentActiveSession; 
+        let currentMatches = s.currentMatches || []; 
+        let historyLog = s.historyLog || []; 
+        let statsLog = s.statsLog || {};
+        
+        const mIdx = currentMatches.findIndex(x => x.id === scoreModalTargetMatchId); 
+        if (mIdx === -1) return;
+        
+        let match = currentMatches[mIdx];
+        const myFixedName = localStorage.getItem("my_badminton_name") || "";
+        const targetMatchNames = getNamesFromIds(match.teamA, match.teamANames).concat(getNamesFromIds(match.teamB, match.teamBNames));
+        
+        // 🔒 [권한 가드]: 해당 경기에 출전한 선수 4명 또는 관리자가 아닐 경우 반려 처리
+        if (!window.isAdminMode && !targetMatchNames.includes(myFixedName)) {
+            alert("🔒 해당 경기의 출전 선수 혹은 관리자만 결과를 전송할 권한이 있습니다!");
+            return;
+        }
 
-        let match = currentMatches[mIdx]; match.scoreA = sA; match.scoreB = sB; match.status = "완료";
+        match.scoreA = sA; match.scoreB = sB; match.status = "완료";
         historyLog.push({ ...match, timestamp: Date.now() }); currentMatches = currentMatches.filter(x => x.id !== scoreModalTargetMatchId);
 
         const winTeamA = sA > sB; let sumA = 0, sumB = 0;
@@ -668,6 +745,13 @@ if(document.getElementById('btnSubmitMatchScore')) {
         match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
 
         document.getElementById('scoreModal').classList.add('hidden');
+        
+        // 버튼 선택 초기화 속성 리셋
+        btnWinA.removeAttribute('data-winner');
+        btnWinB.removeAttribute('data-winner');
+        btnWinA.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-lg border border-slate-300 transition-all";
+        btnWinB.className = "bg-slate-100 text-slate-700 font-black px-2.5 py-1.5 rounded-xl border border-slate-300 transition-all";
+
         update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
     };
 }
