@@ -924,6 +924,7 @@ function recalculateLiveQueueMatch() {
     const uniqueMmrLevels = [...new Set(sortedPlayersByMmr.map(x => x.displayMmr))].sort((a, b) => b - a);
     const totalPlayersCount = sortedPlayersByMmr.length;
 
+    // 4. 새 대진 생성 루프 (수정된 핵심 부분)
     for (let i = 0; i < extraSlots; i++) {
         let freshQueue = attendees.filter(id => !busyIds.has(id) && !restList.includes(id))
                                    .sort((a, b) => adjustedPlayCounts[a] - adjustedPlayCounts[b]);
@@ -932,26 +933,27 @@ function recalculateLiveQueueMatch() {
             const anchorId = freshQueue[0];
             const anchorPlayer = window.allSystemPlayers.find(x => x.id === anchorId);
             
-            // 등수 보정 및 등급 가드 적용
             const currentRank = sortedPlayersByMmr.findIndex(p => p.id === anchorId) + 1;
             const range = (currentRank <= 2 || currentRank >= (totalPlayersCount - 1)) ? 8 : 4;
             const anchorLevelIdx = uniqueMmrLevels.indexOf(anchorPlayer.displayMmr);
 
             let matchedCandidates = freshQueue.filter(id => {
                 const p = window.allSystemPlayers.find(x => x.id === id);
+                if (!p) return false;
                 const pRank = sortedPlayersByMmr.findIndex(player => player.id === p.id) + 1;
                 const pLevelIdx = uniqueMmrLevels.indexOf(p.displayMmr);
                 return Math.abs(currentRank - pRank) <= range && Math.abs(anchorLevelIdx - pLevelIdx) <= 4;
             });
 
-            // 4명 미만이면 대진을 잡지 않고 루프 탈출 (다음 턴 대기)
-            if (matchedCandidates.length < 4) break; 
+            // 🎯 [핵심 수정]: 4명이 안 모이면 break(전체 중단)가 아니라 continue(이 코트는 건너뜀)
+            if (matchedCandidates.length < 4) {
+                console.warn(`코트 ${i+1}번 매칭 조건 미달 - 스킵하고 다음 코트 확인`);
+                continue; 
+            }
 
-            // 최종 엄선 후 실력순 정렬
             const final4 = matchedCandidates.slice(0, 4).map(id => window.allSystemPlayers.find(x => x.id === id))
                                             .sort((a, b) => b.displayMmr - a.displayMmr);
 
-            // [1등+4등] VS [2등+3등] 팀 분배
             const teamA = [final4[0].id, final4[3].id];
             const teamB = [final4[1].id, final4[2].id];
 
@@ -961,6 +963,9 @@ function recalculateLiveQueueMatch() {
                 teamANames: getNamesFromIds(teamA), teamBNames: getNamesFromIds(teamB)
             });
             busyIds.add(teamA[0]); busyIds.add(teamA[1]); busyIds.add(teamB[0]); busyIds.add(teamB[1]);
+        } else {
+            // 더 이상 뽑을 인원이 없으면 루프 탈출
+            break;
         }
     }
     update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
