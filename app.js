@@ -892,77 +892,226 @@ function recalculateLiveQueueMatch() {
     const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
-    // 1. 경기 중인 인원 격리 (에러 방지: || [] 추가)
-    let busyIds = new Set(restList);
-    (currentMatches || []).forEach(m => {
-        if (m.status === "진행중" || m.status === "완료") {
-            (m.teamA || []).forEach(id => busyIds.add(id));
-            (m.teamB || []).forEach(id => busyIds.add(id));
-        }
+    const sortedPlayers = [...window.allSystemPlayers]
+        .sort((a, b) => b.displayMmr - a.displayMmr);
+
+    const rankMap = {};
+    sortedPlayers.forEach((p, idx) => {
+        rankMap[p.id] = idx + 1;
     });
 
-    // 2. 경기수 계산 (보정값 적용)
-    let playCounts = {}; attendees.forEach(id => playCounts[id] = 0);
+    let playCounts = {};
+    attendees.forEach(id => playCounts[id] = 0);
+
     historyLog.forEach(m => {
-        [...(m.teamA || []), ...(m.teamB || [])].forEach(id => { 
-            if(playCounts[id] !== undefined) playCounts[id]++; 
+        [...(m.teamA || []), ...(m.teamB || [])].forEach(id => {
+            if (playCounts[id] !== undefined) {
+                playCounts[id]++;
+            }
         });
     });
 
-    let activePlayCounts = attendees.filter(id => !restList.includes(id)).map(id => playCounts[id] || 0);
-    let maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
-    let getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
+    const activePlayCounts = attendees
+        .filter(id => !restList.includes(id))
+        .map(id => playCounts[id] || 0);
 
-    // 3. 기존 대기열/홀딩 방 정리
-    let finalMatches = (currentMatches || []).filter(m => m.status === "진행중" || m.status === "완료");
-    let existingHoldMatches = (currentMatches || []).filter(m => m.status === "대기");
+    const maxPlayCount =
+        activePlayCounts.length > 0
+            ? Math.max(...activePlayCounts)
+            : 0;
 
-    existingHoldMatches.forEach(m => {
+    const getAdjustedCount = (id) =>
+        Math.min(playCounts[id] || 0, maxPlayCount);
+
+    // 진행중 경기만 유지
+    let finalMatches = currentMatches.filter(
+        m => m.status === "진행중"
+    );
+
+    let holdMatches = currentMatches.filter(
+        m => m.status === "대기" &&
+        (!m.teamB || m.teamB.length === 0)
+    );
+
+    let busyIds = new Set(restList);
+
+    finalMatches.forEach(m => {
         (m.teamA || []).forEach(id => busyIds.add(id));
         (m.teamB || []).forEach(id => busyIds.add(id));
     });
 
-    // 4. 매칭 시작
-    let freshQueue = attendees.filter(id => !busyIds.has(id)).sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
-    const sortedPlayers = [...window.allSystemPlayers].sort((a, b) => b.displayMmr - a.displayMmr);
+    // =========================
+    // 홀딩방 먼저 채우기
+    // =========================
 
-    while (finalMatches.length < maxCourts && freshQueue.length > 0) {
-        const anchorId = freshQueue[0];
-        const anchorPlayer = window.allSystemPlayers.find(x => x.id === anchorId);
-        if (!anchorPlayer) { freshQueue.shift(); continue; }
+    let freePlayers = attendees
+        .filter(id => !busyIds.has(id));
 
-        const anchorRank = sortedPlayers.findIndex(p => p.id === anchorId) + 1;
-        let candidates = freshQueue.slice(1).filter(pId => {
-            const pRank = sortedPlayers.findIndex(p => p.id === pId) + 1;
-            return Math.abs(anchorRank - pRank) <= 4;
-        });
+    holdMatches.forEach(hold => {
 
-        if (candidates.length >= 3) {
-            const team = [anchorId, ...candidates.slice(0, 3)].map(id => window.allSystemPlayers.find(x => x.id === id))
-                                                                .sort((a, b) => b.displayMmr - a.displayMmr);
-            const teamA = [team[0].id, team[3].id];
-            const teamB = [team[1].id, team[2].id];
+        let group = [...(hold.teamA || [])];
 
-            finalMatches.push({
-                id: `m_${Date.now()}_slot_${finalMatches.length}`, status: "대기",
-                teamA: teamA, teamB: teamB,
-                teamANames: getNamesFromIds(teamA), teamBNames: getNamesFromIds(teamB)
+        group.forEach(id => busyIds.add(id));
+
+        while (group.length < 4) {
+
+            const anchorRank = rankMap[group[0]];
+
+            const candidate = freePlayers.find(id => {
+
+                if (group.includes(id)) return false;
+
+                const rank = rankMap[id];
+
+                return Math.abs(rank - anchorRank) <= 4;
             });
-            [anchorId, ...candidates.slice(0, 3)].forEach(id => busyIds.add(id));
-        } else {
-            finalMatches.push({
-                id: `hold_${anchorId}`, status: "대기",
-                teamA: [anchorId, ...candidates], teamB: [],
-                teamANames: getNamesFromIds([anchorId, ...candidates]), teamBNames: []
-            });
-            busyIds.add(anchorId);
-            candidates.forEach(id => busyIds.add(id));
+
+            if (!candidate) break;
+
+            group.push(candidate);
+
+            busyIds.add(candidate);
+
+            freePlayers =
+                freePlayers.filter(x => x !== candidate);
         }
-        freshQueue = freshQueue.filter(id => !busyIds.has(id));
+
+        if (group.length === 4) {
+
+            const players = group
+                .map(id =>
+                    window.allSystemPlayers.find(
+                        p => p.id === id
+                    )
+                )
+                .sort(
+                    (a, b) =>
+                        b.displayMmr - a.displayMmr
+                );
+
+            const teamA = [
+                players[0].id,
+                players[3].id
+            ];
+
+            const teamB = [
+                players[1].id,
+                players[2].id
+            ];
+
+            finalMatches.push({
+                id: `m_${Date.now()}_${Math.random()}`,
+                status: "대기",
+                teamA,
+                teamB,
+                teamANames: getNamesFromIds(teamA),
+                teamBNames: getNamesFromIds(teamB)
+            });
+
+        } else {
+
+            finalMatches.push({
+                ...hold,
+                teamA: group,
+                teamANames: getNamesFromIds(group)
+            });
+        }
+    });
+
+    // =========================
+    // 새 대기열 생성
+    // =========================
+
+    let freshQueue = attendees
+        .filter(id => !busyIds.has(id))
+        .sort(
+            (a, b) =>
+                getAdjustedCount(a) -
+                getAdjustedCount(b)
+        );
+
+    while (
+        finalMatches.length < maxCourts &&
+        freshQueue.length > 0
+    ) {
+
+        const anchorId = freshQueue[0];
+
+        const anchorRank = rankMap[anchorId];
+
+        let group = [anchorId];
+
+        for (let i = 1; i < freshQueue.length; i++) {
+
+            const candidate = freshQueue[i];
+
+            const rank = rankMap[candidate];
+
+            if (
+                Math.abs(rank - anchorRank) <= 4
+            ) {
+                group.push(candidate);
+            }
+
+            if (group.length === 4) break;
+        }
+
+        if (group.length === 4) {
+
+            const players = group
+                .map(id =>
+                    window.allSystemPlayers.find(
+                        p => p.id === id
+                    )
+                )
+                .sort(
+                    (a, b) =>
+                        b.displayMmr - a.displayMmr
+                );
+
+            const teamA = [
+                players[0].id,
+                players[3].id
+            ];
+
+            const teamB = [
+                players[1].id,
+                players[2].id
+            ];
+
+            finalMatches.push({
+                id: `m_${Date.now()}_${finalMatches.length}`,
+                status: "대기",
+                teamA,
+                teamB,
+                teamANames: getNamesFromIds(teamA),
+                teamBNames: getNamesFromIds(teamB)
+            });
+
+        } else {
+
+            finalMatches.push({
+                id: `hold_${anchorId}`,
+                status: "대기",
+                teamA: group,
+                teamB: [],
+                teamANames: getNamesFromIds(group),
+                teamBNames: []
+            });
+        }
+
+        group.forEach(id => busyIds.add(id));
+
+        freshQueue =
+            freshQueue.filter(id => !busyIds.has(id));
     }
-    
-    // DB 업데이트
-    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
+
+    update(
+        ref(db, `sessions/${window.currentSessionKey}`),
+        {
+            currentMatches: finalMatches
+        }
+    );
 }
 
 function renderSessionRankTable(s) {
