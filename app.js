@@ -1205,19 +1205,16 @@ if (document.readyState === "loading") { document.addEventListener("DOMContentLo
 else { bootAppEngine(); }
 
 // =========================================================================
-// 🤖 [순정 엔진 다이렉트 링크] 실제 대진 로직(5대 코어)을 그대로 가져다 쓰는 마스터 시뮬레이터
+// 🤖 [마스터 시뮬레이터] 멈추지 않는 순환 & 하위권 급락 승률 정산 엔진
 // =========================================================================
 function runLiveDatabaseSimulationLoop() {
     let loopCount = 0;
-    const maxLoops = 30; // 총 30경기 연속 컴파일 목표
-    let emptyCourtHoldCount = 0; // 코트 공백 홀딩 카운터
+    const maxLoops = 30; 
 
     function triggerNextAutoMatchAndSettlement() {
         if (loopCount >= maxLoops) {
-            console.log(`\n====================================================`);
-            console.log(`⚙️ [순정 엔진 진단]: 총 30경기 중 대진 조건 불일치로 코트가 비어있던 대기 발생 횟수: ${emptyCourtHoldCount}회`);
-            console.log(`====================================================\n`);
-            alert(`🏁 [라이브 시뮬레이션 종료] 실제 대진 로직 기반 ${maxLoops}경기 컴파일 완료!\n\n(코트 공백 대기 발생: ${emptyCourtHoldCount}회 -> 콘솔 확인)`);
+            console.log(`🏁 [시뮬레이션 종료] 30경기 정산 완료.`);
+            alert(`🏁 [라이브 시뮬레이션 종료] 총 ${maxLoops}경기 정산 완료!`);
             return;
         }
 
@@ -1228,62 +1225,52 @@ function runLiveDatabaseSimulationLoop() {
             const currentMatches = s.currentMatches || [];
             const dynamicTargetScore = parseInt(s.targetScore) || 25;
 
-            // 1. 🎯 [진짜 대진 엔진 직접 호출]: 껍데기 로직 안 쓰고, app.js의 실제 recalculateLiveQueueMatch를 강제 구동!
-            // 코트에 자리가 비어있다면 진짜 엔진을 실행시켜 파이어베이스에 대진 카드를 생성하도록 만듭니다.
-            if (currentMatches.filter(m => m.status !== "완료").length < (s.courts || 2)) {
+            // 1. 코트가 비어있으면 실제 엔진 가동
+            const activeMatches = currentMatches.filter(m => m.status !== "완료");
+            if (activeMatches.length < (s.courts || 2)) {
                 if (typeof recalculateLiveQueueMatch === "function") {
                     recalculateLiveQueueMatch();
                 }
-                // 실제 엔진이 파이어베이스 DB를 갱신하고 내려오는 물리적 시간 유예 (0.6초)
                 setTimeout(triggerNextAutoMatchAndSettlement, 600);
                 return;
             }
 
-            // 2. 진짜 엔진이 조건에 맞춰서 생성해 준 라이브 대진 카드를 선점합니다.
-            const targetMatch = currentMatches.find(m => m.status !== "완료");
+            // 2. 진행할 매치 선점
+            const targetMatch = activeMatches[0];
             
-            // ⚠️ 만약 진짜 엔진이 "±4등 슬라이딩 윈도우" 조건에 안 맞아서 대진을 안 짜주고 홀딩시켰다면?
-            if (!targetMatch) {
-                emptyCourtHoldCount++; // 코트 공백 시간 누적
-                setTimeout(triggerNextAutoMatchAndSettlement, 1000); // 라이벌이 나올 때까지 1초 대기 후 재순환
-                return;
-            }
-
-            // 3. 🧠 [승률 예측]: 진짜 엔진이 엄선해 준 4인의 displayMmr 점수를 추적해 ELO 승률 정밀 계산
+            // 3. 🧠 [현실 고증 승률 계산]: 하위권 페널티 적용
             const teamAPlayers = targetMatch.teamA.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
             const teamBPlayers = targetMatch.teamB.map(id => window.allSystemPlayers.find(x => x.id === parseInt(id)) || { displayMmr: 1000 });
             
             const avgMmrA = (teamAPlayers.reduce((acc, p) => acc + (p.displayMmr || 1000), 0)) / 2;
             const avgMmrB = (teamBPlayers.reduce((acc, p) => acc + (p.displayMmr || 1000), 0)) / 2;
 
+            // mmr 차이가 100점 이상이면 패널티 가중치 1.5배 적용 (하위권 승률 급락 유도)
             const mmrDiff = avgMmrB - avgMmrA;
-            const expectedProbabilityA = 1 / (1 + Math.pow(10, (mmrDiff / 400)));
+            const penalty = (Math.abs(mmrDiff) > 100) ? 1.5 : 1.0;
+            const effectiveDiff = mmrDiff * penalty;
 
-            const winRateA = Math.round(expectedProbabilityA * 100);
-            const winRateB = 100 - winRateA;
+            // 승률 민감도를 높이기 위해 분모를 300으로 설정 (고수-초보 격차 극대화)
+            const expectedProbabilityA = 1 / (1 + Math.pow(10, (effectiveDiff / 300)));
 
             loopCount++;
-            console.log(`\n🔥 [🤖 실제 로직 대진 검증 제 ${loopCount}경기 (${dynamicTargetScore}점제)]`);
-            console.log(`🆚 TEAM A [${targetMatch.teamANames.join(', ')}] (평균 MMR: ${Math.round(avgMmrA)}점) -> 승리 확률: ${winRateA}%`);
-            console.log(`🆚 TEAM B [${targetMatch.teamBNames.join(', ')}] (평균 MMR: ${Math.round(avgMmrB)}점) -> 승리 확률: ${winRateB}%`);
-
-            // 4. 난수 스코어 생성 (실제 방 설정 점수인 dynamicTargetScore 연동)
+            
+            // 4. 난수 스코어 생성
             const dice = Math.random();
             let finalScoreA, finalScoreB;
             
+            // 승률에 따라 스코어 결정
             if (dice < expectedProbabilityA) {
                 finalScoreA = dynamicTargetScore;
-                finalScoreB = Math.floor(Math.random() * 6) + (dynamicTargetScore - 8); 
-                if (finalScoreB >= dynamicTargetScore) finalScoreB = dynamicTargetScore - 2;
+                finalScoreB = Math.max(0, dynamicTargetScore - (Math.floor(Math.random() * 10) + 5)); 
             } else {
-                finalScoreA = Math.floor(Math.random() * 6) + (dynamicTargetScore - 8);
-                if (finalScoreA >= dynamicTargetScore) finalScoreA = dynamicTargetScore - 2;
+                finalScoreA = Math.max(0, dynamicTargetScore - (Math.floor(Math.random() * 10) + 5));
                 finalScoreB = dynamicTargetScore;
             }
 
-            console.log(`🏁 [경기 마감 결과] -> 스코어 ${finalScoreA} : ${finalScoreB} (${finalScoreA > finalScoreB ? 'TEAM A 승리' : 'TEAM B 승리'})`);
+            console.log(`🔥 제 ${loopCount}경기 | A:${Math.round(avgMmrA)} vs B:${Math.round(avgMmrB)} | A승률:${Math.round(expectedProbabilityA*100)}% | 결과 ${finalScoreA}:${finalScoreB}`);
 
-            // 5. 완료 데이터 세팅
+            // 5. 완료 처리 및 DB 동기화
             targetMatch.status = "완료";
             targetMatch.scoreA = finalScoreA;
             targetMatch.scoreB = finalScoreB;
@@ -1291,19 +1278,18 @@ function runLiveDatabaseSimulationLoop() {
 
             const historyLog = s.historyLog || [];
             historyLog.push(targetMatch);
-
             const nextMatches = currentMatches.filter(x => x.id !== targetMatch.id);
 
-            // 6. 데이터베이스에 최종 동기화 전송
             update(sessionRef, {
                 currentMatches: nextMatches,
                 historyLog: historyLog
             }).then(() => {
-                setTimeout(triggerNextAutoMatchAndSettlement, 800);
+                setTimeout(triggerNextAutoMatchAndSettlement, 200);
             });
 
         }).catch((err) => {
-            console.error("라이브 시뮬레이션 루프 에러:", err);
+            console.error("루프 에러:", err);
+            setTimeout(triggerNextAutoMatchAndSettlement, 1000);
         });
     }
 
