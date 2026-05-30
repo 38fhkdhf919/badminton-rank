@@ -235,25 +235,15 @@ function calculateGlobalLeaderboard(allSessions) {
     });
 }
 
+// ==========================================
+// 🏟️ 실시간 라이브 정모 전광판 제어실 코어
+// ==========================================
 window.initSessionPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
-    const wrapper = document.getElementById('adminButtonWrapper');
-    
-    if (btnToggle && wrapper) {
-        // 🎯 [요구 1 보완]: 기인증 관리자면 새로고침 시에도 높이 공간 즉각 복원 자동 표출
-        if (window.isAdminMode) {
-            btnToggle.innerText = "🔓 관리자 인증 해제";
-            btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1";
-            wrapper.style.height = "34px";
-            wrapper.style.marginTop = "0.25rem";
-        } else {
-            btnToggle.innerText = "🔐 마스터 관리자 인증";
-            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer flex items-center gap-1";
-            wrapper.style.height = "0px";
-            wrapper.style.marginTop = "0px";
-        }
+    if (btnToggle) {
+        btnToggle.innerText = isAdminMode ? "🔓 관리자 인증 해제" : "🔐 마스터 관리자 인증";
+        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer";
 
-        // 🎯 [요구 1 반영]: 알림창 없이 세션 페이지 타이틀 5연타 즉시 공간 슬라이딩 오픈
         let clickCount = 0; let lastTime = 0;
         const triggerNode = document.getElementById('sessionMainTitle');
         if (triggerNode) {
@@ -261,19 +251,18 @@ window.initSessionPage = function() {
                 const now = Date.now(); if (now - lastTime > 2500) { clickCount = 0; }
                 clickCount++; lastTime = now;
                 if (clickCount === 5) {
-                    wrapper.style.height = "34px";
-                    wrapper.style.marginTop = "0.25rem";
-                    btnToggle.classList.add('fire-rank-card');
+                    btnToggle.classList.remove('opacity-0', 'pointer-events-none', 'select-none');
+                    btnToggle.classList.add('opacity-100', 'pointer-events-auto', 'select-auto');
                     clickCount = 0;
                 }
             };
         }
 
         btnToggle.onclick = function() {
-            if (!window.isAdminMode) {
-                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { window.isAdminMode = true; localStorage.setItem("badminton_admin_login", "true"); }
+            if (!isAdminMode) {
+                if (prompt("🔐 마스터 암호를 기입하세요:") === "1234") { isAdminMode = true; localStorage.setItem("badminton_admin_login", "true"); }
                 else { alert("비밀번호 에러!"); return; }
-            } else { window.isAdminMode = false; localStorage.setItem("badminton_admin_login", "false"); }
+            } else { isAdminMode = false; localStorage.setItem("badminton_admin_login", "false"); }
             window.location.reload();
         };
     }
@@ -407,7 +396,7 @@ function renderAttendanceBox(s) {
         container.innerHTML = `<div class="text-[11px] text-slate-400 py-2 w-full text-center">🔐 출석부 마감 잠금</div>`;
     } else {
         let targetPlayersPool = [...window.allSystemPlayers];
-        if (!window.isAdminMode) {
+        if (!isAdminMode) {
             targetPlayersPool = window.allSystemPlayers.filter(p => attendees.includes(p.id) && !restList.includes(p.id));
             if (boxTitle) boxTitle.innerText = "👥 오늘 정모 대기 회원";
             if (label) label.innerText = `${targetPlayersPool.length}명 대기`;
@@ -416,31 +405,18 @@ function renderAttendanceBox(s) {
             if (label) label.innerText = `${attendees.length}명 참여`;
         }
 
-        if (targetPlayersPool.length === 0) {
-            container.innerHTML = `<div class="text-[11px] text-slate-400 py-4 w-full text-center italic">현재 코트 대기 중인 회원이 없습니다.</div>`;
-        } else {
-            container.innerHTML = targetPlayersPool.map(p => {
-                const isChecked = attendees.includes(p.id); 
-                const isResting = restList.includes(p.id);
-                
-                // 🎯 관리자가 클릭 시 선택 유무가 인디고 색상으로 뚜렷하게 피드백되도록 스타일 전격 개혁
-                let btnStyle = "bg-slate-100 text-slate-600 border border-slate-300 font-bold hover:bg-slate-200";
-                if (isChecked) {
-                    btnStyle = "bg-indigo-600 text-white font-black ring-2 ring-indigo-600/20 shadow-xs";
-                }
-                if (window.isAdminMode && isResting) {
-                    btnStyle = "bg-amber-100 text-amber-800 border-2 border-amber-400 line-through font-bold";
-                }
-                
-                const disableAttr = window.isAdminMode ? "" : "disabled style='cursor: default;'";
-                return `<button data-id="${p.id}" ${disableAttr} class="btn-toggle-attend text-[10px] px-2.5 py-1 rounded-xl transition-all duration-200 m-0.5 ${btnStyle}">${p.name}</button>`;
-            }).join('');
+        container.innerHTML = targetPlayersPool.map(p => {
+            const isChecked = attendees.includes(p.id); const isResting = restList.includes(p.id);
+            let btnStyle = isChecked ? "bg-indigo-600 text-white font-black" : "bg-slate-100 text-slate-600 border";
+            if(isAdminMode && isResting) btnStyle = "bg-amber-100 text-amber-800 border-amber-300 line-through";
+            const disableAttr = isAdminMode ? "" : "disabled";
+            return `<button data-id="${p.id}" ${disableAttr} class="btn-toggle-attend text-[10px] px-2 py-0.5 rounded-lg transition m-0.5">${p.name}</button>`;
+        }).join('');
 
-            if(window.isAdminMode) {
-                document.querySelectorAll('.btn-toggle-attend').forEach(btn => {
-                    btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); };
-                });
-            }
+        if(isAdminMode) {
+            document.querySelectorAll('.btn-toggle-attend').forEach(btn => {
+                btn.onclick = function() { commitAttendanceAction(parseInt(this.getAttribute('data-id'))); };
+            });
         }
     }
 
