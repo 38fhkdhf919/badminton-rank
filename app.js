@@ -21,7 +21,7 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 파이어베이스 /players 원격 데이터베이스 실시간 수신 링크
+// 📡 파이어베이스 /players 원격 데이터베이스 캐시 수신체 결합
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
@@ -56,19 +56,23 @@ function getNamesFromIds(ids, fallbackNames) {
 // ==========================================
 window.initDashboardPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
+    const wrapper = document.getElementById('adminButtonWrapper');
     
-    // 💡 [이스터에그 잠금 해제 인터페이스 구동 링]
-    if (btnToggle) {
-        // 이미 기인증 상태라면 즉시 잠금 해제 가시화
+    if (btnToggle && wrapper) {
+        // 🎯 [여백 전면 해제 기믹]: 이미 로그인 검증된 관리자면 새로고침 시에도 높이를 유지하여 즉시 표출
         if (isAdminMode) {
             btnToggle.innerText = "🔓 관리자 모드 인증 해제";
-            btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5 opacity-100 pointer-events-auto select-auto";
+            btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5";
+            wrapper.style.height = "auto";
+            wrapper.style.marginTop = "0.5rem";
         } else {
             btnToggle.innerText = "🔐 마스터 관리자 인증";
-            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5 opacity-0 pointer-events-none select-none";
+            btnToggle.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer flex items-center gap-1.5";
+            wrapper.style.height = "0px";
+            wrapper.style.marginTop = "0px";
         }
 
-        // 🎯 [핵심 기믹]: 로고 5연타 추적 카운터 결합
+        // 🎯 [이스터에그 엔진 교정]: 알림창 없이 5연타 즉시 공간 생성 기믹 가동
         let clickCount = 0;
         let lastClickTime = 0;
         const triggerNode = document.getElementById('easterEggTrigger');
@@ -76,17 +80,17 @@ window.initDashboardPage = function() {
         if (triggerNode) {
             triggerNode.onclick = function() {
                 const currentTime = Date.now();
-                // 2.5초 이상 지체되면 카운터 리셋 벨트 작동
                 if (currentTime - lastClickTime > 2500) { clickCount = 0; }
                 
                 clickCount++;
                 lastClickTime = currentTime;
 
                 if (clickCount === 5) {
-                    alert("👑 시스템 코어 가드가 해제되었습니다. 마스터 인증 제어반이 개방됩니다.");
-                    btnToggle.classList.remove('opacity-0', 'pointer-events-none', 'select-none');
-                    btnToggle.classList.add('opacity-100', 'pointer-events-auto', 'select-auto', 'fire-rank-card');
-                    clickCount = 0; // 초기화
+                    // 알림창(alert)을 전면 생략하고, 숨겨진 영역의 패딩 높이값만 실시간으로 플러스 연산 처리!
+                    wrapper.style.height = "42px"; 
+                    wrapper.style.marginTop = "0.5rem";
+                    btnToggle.classList.add('fire-rank-card');
+                    clickCount = 0;
                 }
             };
         }
@@ -110,9 +114,9 @@ window.initDashboardPage = function() {
         const data = snapshot.val();
         const container = document.getElementById('sessionListContainer');
         const badgeCount = document.getElementById('sessionCountBadge');
-        const wrapper = document.getElementById('testModeWrapper');
+        const testWrapper = document.getElementById('testModeWrapper');
         
-        if (wrapper) wrapper.style.display = isAdminMode ? 'flex' : 'none';
+        if (testWrapper) testWrapper.style.display = isAdminMode ? 'flex' : 'none';
         if (!container) return;
         
         if (!data) {
@@ -171,7 +175,7 @@ window.initDashboardPage = function() {
 
             set(ref(db, `sessions/${timeKey}`), {
                 status: "예정", title: title, date: dateVal, targetScore: scoreVal, courts: 2, isTestMode: isTest, createdAt: Date.now()
-            }).then(() => { alert(`🚀 정모 리그 테이블 형성 완료!`); window.location.reload(); });
+            }).then(() => { alert("🚀 정모 리그 테이블 형성 완료!"); window.location.reload(); });
         };
     }
     const btnGlobalSrc = document.getElementById('btnGlobalSearchRecord');
@@ -238,9 +242,8 @@ window.initSessionPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     if (btnToggle) {
         btnToggle.innerText = isAdminMode ? "🔓 관리자 인증 해제" : "🔐 마스터 관리자 인증";
-        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer";
+        btnToggle.className = isAdminMode ? "bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer" : "bg-slate-800 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border transition shadow-sm cursor-pointer";
 
-        // 세션 페이지 역시 타이틀 5연타 기믹 바인딩 결합
         let clickCount = 0; let lastTime = 0;
         const triggerNode = document.getElementById('sessionMainTitle');
         if (triggerNode) {
@@ -248,7 +251,6 @@ window.initSessionPage = function() {
                 const now = Date.now(); if (now - lastTime > 2500) { clickCount = 0; }
                 clickCount++; lastTime = now;
                 if (clickCount === 5) {
-                    alert("🔓 제어 권한 락이 해제되었습니다.");
                     btnToggle.classList.remove('opacity-0', 'pointer-events-none', 'select-none');
                     btnToggle.classList.add('opacity-100', 'pointer-events-auto', 'select-auto');
                     clickCount = 0;
@@ -459,7 +461,7 @@ function renderLiveCourtsGrid(s) {
     }
 
     if(s.status === "종료") {
-        if(historyLog.length === 0) { liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">금일 매치 전적 아카이브 로그가 비어있습니다.</div>`; return; }
+        if(historyLog.length === 0) { liveContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs bg-white border border-dashed rounded-2xl">기록 없음</div>`; return; }
         liveContainer.innerHTML = [...historyLog].reverse().map((m, idx) => {
             const aNames = getNamesFromIds(m.teamA, m.teamANames).join(', '); const bNames = getNamesFromIds(m.teamB, m.teamBNames).join(', ');
             const winA = m.scoreA > m.scoreB;
@@ -667,6 +669,7 @@ function borderTrackAssign(q) {
     }).join('');
 }
 
+// 명칭 단축 동기화 프록시
 function executeLocalRecordSearch(queryName) { borderTrackAssign(queryName); }
 
 function executeGlobalRecordSearch() {
