@@ -1138,10 +1138,9 @@ function renderSessionRankTable(s) {
     const tbody = document.getElementById('sessionLiveRankTableBody');
     if (!tbody || window.allSystemPlayers.length === 0) return;
     
-    const historyLog = s.historyLog || [];
     const statsLog = s.statsLog || {}; // 각 유저별 누적 승패 및 deltaSum 저장소
 
-    // 데이터를 가공하여 성적표 생성
+    // 1. 데이터를 가공하여 임시 리스트 생성 및 정렬
     let list = Object.entries(statsLog).map(([id, log]) => {
         const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
         return {
@@ -1153,15 +1152,30 @@ function renderSessionRankTable(s) {
         };
     }).sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
 
-    tbody.innerHTML = list.map(p => {
-        const currentTotal = p.baseMmr + p.delta;
-        const color = p.delta >= 0 ? 'text-emerald-600' : 'text-rose-600';
+    // 2. HTML 렌더링 매핑 보정 (전적, 승률, MMR 결합 출력)
+    tbody.innerHTML = list.map((p, idx) => {
+        const total = p.win + p.lose;
+        const winRate = total > 0 ? Math.round((p.win / total) * 100) : 0;
+        const currentTotalMmr = p.baseMmr + p.delta; // 오늘의 최종 합산 MMR
+        
+        // MMR 등락폭 부호 및 컬러 세팅
+        const deltaColor = p.delta >= 0 ? 'text-emerald-600' : 'text-rose-600';
+        const deltaText = p.delta > 0 ? `(+${p.delta})` : (p.delta < 0 ? `(${p.delta})` : `(0)`);
+        
+        // 1등이면서 1승 이상 챙긴 유저 불꽃 마크 효과
+        const isHot = idx === 0 && p.win > 0;
+
         return `
-            <tr>
-                <td class="py-2 font-black">${p.name}</td>
-                <td class="py-2 text-center text-xs text-slate-400">${p.baseMmr}</td>
-                <td class="py-2 text-center font-bold ${color}">${p.delta > 0 ? '+' : ''}${p.delta}</td>
-                <td class="py-2 text-right font-black">${currentTotal}</td>
+            <tr class="${isHot ? 'hot-player-card text-red-500 font-bold' : ''}">
+                <td class="py-2 font-bold">${p.name}${isHot ? ' 🔥' : ''}</td>
+                
+                <td class="py-2 text-center font-mono text-slate-600">${p.win}승 ${p.lose}패</td>
+                
+                <td class="py-2 text-center font-mono font-bold text-indigo-600">${winRate}%</td>
+                
+                <td class="py-2 text-right font-mono font-black text-slate-900">
+                    ${currentTotalMmr}점 <span class="text-xs font-bold ${deltaColor}">${deltaText}</span>
+                </td>
             </tr>`;
     }).join('');
 }
