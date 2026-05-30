@@ -967,18 +967,35 @@ function recalculateLiveQueueMatch() {
 }
 
 function renderSessionRankTable(s) {
-    const tbody = document.getElementById('sessionLiveRankTableBody'); if (!tbody || window.allSystemPlayers.length === 0) return;
-    const attendees = s.attendees || []; const historyLog = s.historyLog || [];
-    let map = {}; attendees.forEach(id => { const p = window.allSystemPlayers.find(x => x.id === id); map[id] = { name: p ? p.name : id, win: 0, lose: 0, scoreDiff: 0 }; });
+    const tbody = document.getElementById('sessionLiveRankTableBody');
+    if (!tbody || window.allSystemPlayers.length === 0) return;
+    
+    const historyLog = s.historyLog || [];
+    const statsLog = s.statsLog || {}; // 각 유저별 누적 승패 및 deltaSum 저장소
 
-    historyLog.forEach(m => {
-        const scoreA = m.scoreA || 0; const scoreB = m.scoreB || 0; const teamAWon = scoreA > scoreB;
-        m.teamA.forEach(id => { if (map[id]) { if (teamAWon) map[id].win++; else map[id].lose++; map[id].scoreDiff += (scoreA - scoreB); } });
-        m.teamB.forEach(id => { if (map[id]) { if (!teamAWon) map[id].win++; else map[id].lose++; map[id].scoreDiff += (scoreB - scoreA); } });
-    });
+    // 데이터를 가공하여 성적표 생성
+    let list = Object.entries(statsLog).map(([id, log]) => {
+        const p = window.allSystemPlayers.find(x => x.id === parseInt(id));
+        return {
+            name: p ? p.name : id,
+            baseMmr: p ? p.displayMmr : 1000,
+            win: log.win || 0,
+            lose: log.lose || 0,
+            delta: log.delta || 0
+        };
+    }).sort((a, b) => (b.baseMmr + b.delta) - (a.baseMmr + a.delta));
 
-    let list = Object.entries(map).map(([id, val]) => ({ id: parseInt(id), ...val })).sort((a, b) => b.win - a.win || b.scoreDiff - a.scoreDiff);
-    tbody.innerHTML = list.map((p, idx) => `<tr class="${idx===0&&p.win>0?'hot-player-card text-red-500 font-bold':''}"><td class="py-2 font-bold">${p.name}${idx===0&&p.win>0?' 🔥':''}</td><td>${p.win}승${p.lose}패</td><td class="text-indigo-600 font-bold">${p.win+p.lose>0?Math.round(p.win/(p.win+p.lose)*100):0}%</td><td>${p.scoreDiff>0?'+'+p.scoreDiff:p.scoreDiff}</td></tr>`).join('');
+    tbody.innerHTML = list.map(p => {
+        const currentTotal = p.baseMmr + p.delta;
+        const color = p.delta >= 0 ? 'text-emerald-600' : 'text-rose-600';
+        return `
+            <tr>
+                <td class="py-2 font-black">${p.name}</td>
+                <td class="py-2 text-center text-xs text-slate-400">${p.baseMmr}</td>
+                <td class="py-2 text-center font-bold ${color}">${p.delta > 0 ? '+' : ''}${p.delta}</td>
+                <td class="py-2 text-right font-black">${currentTotal}</td>
+            </tr>`;
+    }).join('');
 }
 
 let scoreModalTargetMatchId = null;
