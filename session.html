@@ -15,12 +15,12 @@
         @keyframes neon-pulse {
             0%, 100% { 
                 border-color: #fbbf24; 
-                box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), inset 0 0 4px rgba(251, 191, 36, 0.2); 
+                box-shadow: 0 0 12px rgba(251, 191, 36, 0.4), inset 0 0 6px rgba(251, 191, 36, 0.2); 
             }
             50% { 
                 border-color: #f59e0b; 
-                box-shadow: 0 0 22px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.4);
-                background-color: rgba(251, 191, 36, 0.05);
+                box-shadow: 0 0 26px rgba(245, 158, 11, 0.9), inset 0 0 12px rgba(245, 158, 11, 0.5);
+                background-color: rgba(251, 191, 36, 0.08);
             }
         }
         .my-neon-match-card { 
@@ -40,77 +40,79 @@
         }
         .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
 
-        /* 📺 [TV 전광판 마스터 스킨 v2]: 무조건 가로 꽉 찬 세로 1열 종대 고정 */
+        /* 📺 [TV 전광판 스킨 v3 완결판] */
         .tv-fullscreen-mode {
             position: fixed !important; inset: 0 !important; z-index: 9999 !important;
-            background-color: #090d16 !important; padding: 2rem !important;
+            background-color: #0b0f19 !important; padding: 2.5rem !important;
             display: flex !important; flex-direction: column !important; justify-content: flex-start !important;
             overflow: hidden !important;
         }
         
-        /* 전광판 구동 시 주변 인터페이스 완전 제거 */
         .tv-fullscreen-mode #unsubmittedAlertBox,
         .tv-fullscreen-mode #beforeStartStatsBox,
         .tv-fullscreen-mode h2 {
             display: none !important;
         }
 
-        /* 📊 무조건 세로 1열 구조로 배치되도록 강제 고정 */
         .tv-fullscreen-mode #liveCourtsContainer {
             display: flex !important; flex-direction: column !important;
-            gap: 1.5rem !important; width: 100% !important; height: 100% !important;
+            gap: 1.75rem !important; width: 100% !important; height: 100% !important;
             justify-content: center !important;
         }
 
-        /* 🏟️ 대진 카드 자이언트 와이드 스킨 (높이는 코트 수에 따라 1/N 자동 분할) */
+        /* 🏟️ 대진 카드 와이드 바 디자인 (코트 수에 맞춰 1/N 꽉 차게 확장) */
         .tv-fullscreen-mode .tv-card-unit {
             display: flex !important; flex-direction: column !important; justify-content: center !important;
-            flex: 1 !important; width: 100% !important; padding: 1.5rem 2.5rem !important; 
-            background: #111827 !important; border: 2px solid #1f2937 !important; border-radius: 1.5rem !important;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6) !important; color: #f8fafc !important;
-            box-sizing: border-box !important;
+            flex: 1 !important; width: 100% !important; padding: 2rem 3rem !important; 
+            background: #161e2e !important; border: 2px solid #243147 !important; border-radius: 2rem !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important; color: #f8fafc !important;
+            box-sizing: border-box !important; transition: all 0.3s ease !important;
         }
         
-        /* 🎯 [요구사항 이식]: 아직 시작 안 한 대기열 카드용 테두리 깜빡임 애니메이션 강제 주입 클래스 */
+        /* 대기 대진용 노란색 네온 테두리 깜빡임 강제 바인딩 */
         .tv-fullscreen-mode .tv-waiting-neon-border {
             animation: neon-pulse 1.8s infinite ease-in-out !important;
-            border-width: 3px !important;
+            border-width: 3.5px !important;
         }
 
         .tv-fullscreen-mode .tv-card-header {
-            display: flex !important; justify-content: space-between !important; items-center !important;
-            border-bottom: 2px solid #1f2937 !important; padding-bottom: 0.5rem !important; margin-bottom: 0.75rem !important;
+            display: flex !important; justify-content: space-between !important; align-items: center !important;
+            border-bottom: 3px solid #1f293d !important; padding-bottom: 0.75rem !important; margin-bottom: 1.25rem !important;
+            width: 100% !important;
         }
 
-        /* 👥 선수 이름 명찰 박스 크기 및 배역 전면 극대화 */
+        /* 👥 선수 이름 명찰 스펙 자이언트 최적화 */
         .tv-fullscreen-mode .tv-player-row {
-            display: grid !important; grid-template-columns: 3fr 1fr 3fr !important;
-            align-items: center !important; width: 100% !important; text-align: center !important;
+            display: flex !important; width: 100% !important; align-items: center !important; justify-content: space-between !important; gap: 2rem !important;
         }
         .tv-fullscreen-mode .tv-team-box {
-            font-size: 2.5rem !important; font-weight: 900 !important; color: #ffffff !important; 
-            background-color: #030712 !important; border: 2px solid #374151 !important; 
-            padding: 1.5rem !important; border-radius: 1.5rem !important;
+            flex: 1 !important; font-size: 3rem !important; font-weight: 950 !important; color: #ffffff !important; 
+            background-color: #030712 !important; border: 3px solid #374151 !important; 
+            padding: 2rem !important; border-radius: 2rem !important; text-align: center !important;
+            box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.6) !important;
             white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
         }
         .tv-fullscreen-mode .tv-vs-badge {
-            font-size: 2.2rem !important; color: #4b5563 !important; font-weight: 900 !important;
+            font-size: 2.6rem !important; color: #64748b !important; font-weight: 900 !important; flex-shrink: 0 !important;
         }
 
-        /* ⏱️ 컴팩트 타이머 셋업 (경기 시간 크기 최적화) */
+        /* ⏱️ 경기 시간 타이머 최적화 */
         .tv-fullscreen-mode .match-live-stopwatch { 
-            font-size: 1.8rem !important; font-weight: 900 !important; color: #ef4444 !important; 
-            background-color: #fef2f2 !important; padding: 0.2rem 1rem !important; border-radius: 0.75rem !important;
+            font-size: 2.2rem !important; font-weight: 950 !important; color: #ffffff !important; 
+            background-color: #ef4444 !important; padding: 0.4rem 1.5rem !important; border-radius: 1rem !important;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4) !important;
         }
-        .tv-fullscreen-mode .tv-status-txt { font-size: 1.3rem !important; font-weight: 900; }
+        .tv-fullscreen-mode .tv-status-txt { font-size: 1.6rem !important; font-weight: 950 !important; color: #f8fafc !important; }
         
-        /* 🚨 입장해 주세요 사이렌 문구 */
+        /* 🚨 입장해 주세요 사이렌 텍스트 */
         .tv-entry-siren {
-            font-size: 1.5rem !important; font-weight: 900 !important; color: #fbbf24 !important;
-            animation: pulse-red 1s infinite ease-in-out;
+            font-size: 1.8rem !important; font-weight: 950 !important; color: #fbbf24 !important;
+            background-color: rgba(251, 191, 36, 0.15) !important; border: 2px solid #fbbf24 !important;
+            padding: 0.4rem 1.5rem !important; border-radius: 1rem !important;
+            box-shadow: 0 0 15px rgba(251, 191, 36, 0.3) !important;
         }
         
-        /* 버튼 원천 숨김 */
+        /* 전광판 모드 내 제어용 버튼 차단 */
         .tv-fullscreen-mode button, .tv-fullscreen-mode .btn-ai-simulate { display: none !important; }
     </style>
 </head>
@@ -199,7 +201,6 @@
             </div>
         </section>
 
-        <!-- 🏟️ [중앙 대진 채널 보드 구역] -->
         <section id="sec-courts" class="md:col-span-5 space-y-4 tab-section">
             <div id="unsubmittedAlertBox" class="hidden flex-col gap-2 bg-rose-50 border-2 border-rose-200 rounded-2xl p-3 shadow-3xs animate-pulse">
                 <h3 class="text-xs font-black text-rose-900 flex items-center gap-1">⚠️ 대진 종료 승리 점수 미입력 홀딩 건</h3>
