@@ -24,12 +24,17 @@ window.currentSessionKey = null;
 let activeChartInstance = null;
 window.allSystemPlayers = [];
 
-// 📡 파이어베이스 /players 원격 데이터베이스 캐시 수신체 결합
+// 📡 파이어베이스 /players 원격 데이터베이스 캐시 수신체 결합 (0번 인덱스 가드 패치)
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     if (data) {
-        window.allSystemPlayers = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+        // 🎯 [버그 해결 핵심]: 객체든 0번이 비어있는 배열이든 빈 값(null/undefined)을 완벽히 걷어내고 순수 유효 배열로 추출합니다.
+        window.allSystemPlayers = Object.values(data).filter(p => p && p.id);
+        
+        // 고유 ID 기준 정렬 순서 보정
         window.allSystemPlayers.sort((a, b) => a.id - b.id);
+        
+        console.log("📡 회원 명단 로드 완료:", window.allSystemPlayers.length, "명");
         
         if (document.getElementById('globalRankTableBody') && window.currentSessionKey === null) {
             const sessionsRef = ref(db, 'sessions');
@@ -43,6 +48,8 @@ onValue(ref(db, 'players'), (snapshot) => {
             }
         }
     }
+}, (error) => {
+    console.error("파이어베이스 로드 에러:", error);
 });
 
 function getNamesFromIds(ids, fallbackNames) {
