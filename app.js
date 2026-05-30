@@ -739,32 +739,76 @@ function renderLiveCourtsGrid(s) {
     });
 }
 
-function handleAiSimulatedMatchCalculation(mId) {
-    const s = window.currentActiveSession; if(!s) return;
-    const currentMatches = s.currentMatches || []; const match = currentMatches.find(x => x.id === mId); if(!match) return;
+// ==========================================
+// 🤖 마스터 관리자 전용 AI 모의 정산 코어 엔진
+// ==========================================
+function handleAiSimulatedMatchCalculation(matchId) {
+    // 🔒 [버그 수정]: 현재 관리자 모드 상태 유무를 가장 먼저 강제 무조건 통과 처리
+    if (!window.isAdminMode) {
+        alert("🔒 마스터 관리자 모드에서만 테스트 가동할 수 있는 단추입니다.");
+        return;
+    }
 
-    let sumA = 0; let sumB = 0;
-    match.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
-    match.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1500); });
+    if (!window.currentSessionKey) {
+        alert("⚠️ 활성화된 세션 키를 찾을 수 없습니다.");
+        return;
+    }
 
-    const maxScore = s.targetScore || 25; const randomFactor = Math.random();
-    let scoreA = maxScore, scoreB = maxScore;
-    if (sumA >= sumB && randomFactor > 0.15 || sumB > sumA && randomFactor <= 0.15) { scoreB = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8)); } 
-    else { scoreA = Math.max(0, maxScore - 4 - Math.floor(Math.random() * 8)); }
+    // 파이어베이스 실시간 데이터베이스에서 현재 스냅샷 직접 로드
+    const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
+    get(sessionRef).then((snapshot) => {
+        if (!snapshot.exists()) return;
+        const s = snapshot.val();
+        const currentMatches = s.currentMatches || [];
+        const historyLog = s.historyLog || [];
+        
+        const targetIdx = currentMatches.findIndex(x => x.id === matchId);
+        if (targetIdx === -1) return;
+        
+        const match = currentMatches[targetIdx];
+        
+        // 🏸 25점 또는 21점 정모 매칭 규칙 기반 난수 스코어 정밀 컴파일
+        const scoreA = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
+        const scoreB = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
+        
+        let finalScoreA = scoreA;
+        let finalScoreB = scoreB;
+        if (finalScoreA === finalScoreB) {
+            finalScoreA = 25;
+            finalScoreB = 23;
+        } else if (finalScoreA > finalScoreB) {
+            finalScoreA = 25;
+        } else {
+            finalScoreB = 25;
+        }
 
-    let historyLog = s.historyLog || []; let statsLog = s.statsLog || {};
-    match.scoreA = scoreA; match.scoreB = scoreB; match.status = "완료";
-    historyLog.push({ ...match, timestamp: Date.now() });
-    const nextMatches = currentMatches.filter(x => x.id !== mId);
+        // 1. 경기 상태 변환 조치
+        match.status = "완료";
+        match.scoreA = finalScoreA;
+        match.scoreB = finalScoreB;
+        match.endedAt = Date.now();
 
-    const winTeamA = scoreA > scoreB; const expA = 1 / (1 + Math.pow(10, ((sumB/2) - (sumA/2)) / 400)); const expB = 1 / (1 + Math.pow(10, ((sumA/2) - (sumB/2)) / 400));
-    const deltaA = Math.round(32 * ((winTeamA?1:0) - expA)); const deltaB = Math.round(32 * ((!winTeamA?1:0) - expB));
-    
-    [...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
-    match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
-    match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
+        // 2. 최종 정산 히스토리 로그에 결합 이주
+        historyLog.push(match);
 
-    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: nextMatches, historyLog, statsLog }).then(() => { recalculateLiveQueueMatch(); });
+        // 3. 현재 구동 코트 밖 대기열 리스트 리빌딩 (완료된 매치 드롭)
+        const nextMatches = currentMatches.filter(x => x.id !== matchId);
+
+        // 4. 파이어베이스 원자적 동기화 업데이트 실행
+        update(sessionRef, {
+            currentMatches: nextMatches,
+            historyLog: historyLog
+        }).then(() => {
+            // 성공 시 후속 대기열 자동 재연산 실시간 컴파일 트리거 가동
+            if (typeof recalculateLiveQueueMatch === "function") {
+                recalculateLiveQueueMatch();
+            }
+        }).catch((err) => {
+            alert("DB 정산 반영 실패: " + err.message);
+        });
+    }).catch((err) => {
+        alert("세션 스냅샷 로드 에러: " + err.message);
+    });
 }
 
 function recalculateLiveQueueMatch() {
