@@ -48,7 +48,7 @@
         <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div class="text-center sm:text-left">
                 <div class="flex items-center justify-center sm:justify-start gap-2">
-                    <a href="./index.html" class="text-xs font-bold text-indigo-600 hover:underline">🏠 대문으로</a>
+                    <a href="./index.html" class="text-xs font-bold text-indigo-600 hover:underline">🏠 홈으로</a>
                     <span class="text-slate-300">|</span>
                     <span id="sessionStatusBadge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100">로딩...</span>
                 </div>
@@ -118,14 +118,14 @@
 
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
-                        <h2 class="text-xs font-black text-slate-700 flex items-center gap-1.5"><span id="attendanceBoxTitle">👥 명단 및 쉼터 관리</span></h2>
+                        <h2 class="text-xs font-black text-slate-700 flex items-center gap-1.5"><span id="attendanceBoxTitle">👥 참석명단 관리</span></h2>
                         <span id="attendeeCountLabel" class="text-[10px] font-mono font-bold bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">0명 참여</span>
                     </div>
                     <div id="attendanceTogglerBox" class="flex flex-wrap gap-1.5 max-h-[240px] overflow-y-auto p-1 border rounded-xl bg-slate-50/50 scrollbar-thin"></div>
                 </div>
                 <!-- 🚨 대기열 제외 인원(쉼터) 명단 보드 완벽 복구 -->
                 <div class="border-t border-slate-100 pt-3">
-                    <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2">🚨 대기열 제외 인원 (부상, 화장실 등)</h3>
+                    <h3 class="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2">🚨 대기열 제외 인원 (부상,조퇴, 휴식 등)</h3>
                     <div id="restPlayersContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
                 </div>
             </div>
@@ -139,7 +139,7 @@
 
             <div class="space-y-3 relative">
                 <div class="flex justify-between items-center px-1">
-                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">🏸 실시간 우선순위 대진 추천 현황</h2>
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">🏸 실시간 우선순위 대진 현황</h2>
                     <button id="btnLiveFullSimulation" class="hidden bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-sans text-[10px] px-3 py-1 rounded-xl font-black shadow-md cursor-pointer hover:from-purple-800 transition-all">🤖 라이브 30경기 연속 자동 대진/정산 시작</button>
                 </div>
                 
@@ -174,7 +174,7 @@
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
-                <h2 class="text-xs font-black text-slate-700 mb-2">🔍 당일 개인 마감 전적 일지</h2>
+                <h2 class="text-xs font-black text-slate-700 mb-2">🔍 오늘 정모 개인전적 검색</h2>
                 <div class="flex gap-1.5 mb-3">
                     <input type="text" id="inputLocalSearchPlayer" placeholder="이름을 입력하면 즉시 필터링" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs outline-none font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all">
                 </div>
