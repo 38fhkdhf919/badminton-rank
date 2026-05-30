@@ -739,10 +739,10 @@ function renderLiveCourtsGrid(s) {
 }
 
 // ==========================================
-// 🤖 마스터 관리자 전용 AI 모의 정산 코어 엔진
+// 🤖 마스터 관리자 전용 AI 모의 정산 코어 엔진 (get 에러 원천 차단 패치판)
 // ==========================================
 function handleAiSimulatedMatchCalculation(matchId) {
-    // 🔒 [버그 수정]: 현재 관리자 모드 상태 유무를 가장 먼저 강제 무조건 통과 처리
+    // 1. 현재 마스터 관리자 상태 유무 최우선 검사
     if (!window.isAdminMode) {
         alert("🔒 마스터 관리자 모드에서만 테스트 가동할 수 있는 단추입니다.");
         return;
@@ -753,60 +753,64 @@ function handleAiSimulatedMatchCalculation(matchId) {
         return;
     }
 
-    // 파이어베이스 실시간 데이터베이스에서 현재 스냅샷 직접 로드
+    // 2. 💡 [버그 해결 핵심]: Uncaught ReferenceError: get 에러를 차단하기 위해 
+    // 전역으로 관리되고 있는 상태 레지스터 객체(window.currentActiveSession)에서 직접 스냅샷을 0.1초만에 복제합니다.
+    const s = window.currentActiveSession;
+    if (!s) {
+        alert("⚠️ 현재 세션 데이터를 동기화하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        return;
+    }
+
+    const currentMatches = s.currentMatches || [];
+    const historyLog = s.historyLog || [];
+    
+    const targetIdx = currentMatches.findIndex(x => x.id === matchId);
+    if (targetIdx === -1) {
+        alert("⚠️ 정산 대상 대진을 리스트에서 찾을 수 없습니다.");
+        return;
+    }
+    
+    const match = currentMatches[targetIdx];
+    
+    // 🏸 25점 난수 스코어 정밀 컴파일
+    const scoreA = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
+    const scoreB = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
+    
+    let finalScoreA = scoreA;
+    let finalScoreB = scoreB;
+    if (finalScoreA === finalScoreB) {
+        finalScoreA = 25;
+        finalScoreB = 23;
+    } else if (finalScoreA > finalScoreB) {
+        finalScoreA = 25;
+    } else {
+        finalScoreB = 25;
+    }
+
+    // 경기 데이터 완료 세팅
+    match.status = "완료";
+    match.scoreA = finalScoreA;
+    match.scoreB = finalScoreB;
+    match.endedAt = Date.now();
+
+    // 최종 정산 히스토리 로그에 결합 이주
+    historyLog.push(match);
+
+    // 현재 구동 코트 밖 대기열 리스트 리빌딩 (완료된 매치 드롭)
+    const nextMatches = currentMatches.filter(x => x.id !== matchId);
+
+    // 3. 이미 파일 내에 정상 등록되어 검증된 'update'와 'ref' 함수를 사용해 파이버베이스 슛 바인딩
     const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
-    get(sessionRef).then((snapshot) => {
-        if (!snapshot.exists()) return;
-        const s = snapshot.val();
-        const currentMatches = s.currentMatches || [];
-        const historyLog = s.historyLog || [];
-        
-        const targetIdx = currentMatches.findIndex(x => x.id === matchId);
-        if (targetIdx === -1) return;
-        
-        const match = currentMatches[targetIdx];
-        
-        // 🏸 25점 또는 21점 정모 매칭 규칙 기반 난수 스코어 정밀 컴파일
-        const scoreA = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
-        const scoreB = Math.floor(Math.random() * 6) + 20; // 20 ~ 25
-        
-        let finalScoreA = scoreA;
-        let finalScoreB = scoreB;
-        if (finalScoreA === finalScoreB) {
-            finalScoreA = 25;
-            finalScoreB = 23;
-        } else if (finalScoreA > finalScoreB) {
-            finalScoreA = 25;
-        } else {
-            finalScoreB = 25;
+    update(sessionRef, {
+        currentMatches: nextMatches,
+        historyLog: historyLog
+    }).then(() => {
+        console.log("🤖 AI 정산 동기화 마감 완료");
+        if (typeof recalculateLiveQueueMatch === "function") {
+            recalculateLiveQueueMatch();
         }
-
-        // 1. 경기 상태 변환 조치
-        match.status = "완료";
-        match.scoreA = finalScoreA;
-        match.scoreB = finalScoreB;
-        match.endedAt = Date.now();
-
-        // 2. 최종 정산 히스토리 로그에 결합 이주
-        historyLog.push(match);
-
-        // 3. 현재 구동 코트 밖 대기열 리스트 리빌딩 (완료된 매치 드롭)
-        const nextMatches = currentMatches.filter(x => x.id !== matchId);
-
-        // 4. 파이어베이스 원자적 동기화 업데이트 실행
-        update(sessionRef, {
-            currentMatches: nextMatches,
-            historyLog: historyLog
-        }).then(() => {
-            // 성공 시 후속 대기열 자동 재연산 실시간 컴파일 트리거 가동
-            if (typeof recalculateLiveQueueMatch === "function") {
-                recalculateLiveQueueMatch();
-            }
-        }).catch((err) => {
-            alert("DB 정산 반영 실패: " + err.message);
-        });
     }).catch((err) => {
-        alert("세션 스냅샷 로드 에러: " + err.message);
+        alert("DB 정산 반영 실패: " + err.message);
     });
 }
 
