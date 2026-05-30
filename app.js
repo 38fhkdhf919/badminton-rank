@@ -447,87 +447,89 @@ function commitAttendanceAction(pId) {
 }
 
 // ==========================================
-// 👥 명단 및 쉼터(대기열 제외) 토글 제어 인터페이스 (★정모 예정 상태 마스터 노출 패치)
+// 👥 [레이아웃 고정] 이름 고정형 원터치 참석/쉼터 토글 인터페이스
 // ==========================================
 function renderAttendanceBox(s) {
     const togglerBox = document.getElementById('attendanceTogglerBox'); if (!togglerBox) return;
     const restContainer = document.getElementById('restPlayersContainer'); if (!restContainer) return;
     
-    const attendees = s.attendees || []; 
-    const restList = s.restPlayers || [];
+    const attendees = s.attendees ? s.attendees.map(id => parseInt(id)) : []; 
+    const restList = s.restPlayers ? s.restPlayers.map(id => parseInt(id)) : [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
 
-    // 🎯 [핵심 패치]: 정모 매칭 가동 전(status === "예정") 상태일 때 전체 풀을 개방합니다.
-    if (s.status === "예정") {
-        document.getElementById('attendeeCountLabel').innerText = `📢 정모 준비 단계 (전체 명단 노출)`;
-        
-        if (window.allSystemPlayers.length === 0) {
-            togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">시스템 회원 명단을 동기화 중입니다...</div>`;
-            return;
-        }
+    // 1. 현재 대기열 제외(쉼터) 유저를 뺀 순수 코트 대기조 필터링
+    const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
 
-        const sortedAllPlayers = [...window.allSystemPlayers].sort((a,b) => a.name.localeCompare(b.name));
+    // 2. 상단 카운터 정보 직관적으로 인원수만 실시간 동기화
+    document.getElementById('attendeeCountLabel').innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
+
+    // 시스템 풀 검사 가드
+    if (window.allSystemPlayers.length === 0) {
+        togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">회원 명단을 로드 중입니다...</div>`;
+        return;
+    }
+
+    // 🎯 [정모 예정 단계]: 이름만 딱 있고 선택 효과로만 제어하는 고정 크기 그리드
+    if (s.status === "예정") {
+        const sortedAllPlayers = [...window.allSystemPlayers].sort((a, b) => a.name.localeCompare(b.name));
         
         togglerBox.innerHTML = sortedAllPlayers.map(p => {
             const isAttending = attendees.includes(p.id);
             const isResting = restList.includes(p.id);
             
-            let badgeText = "❌ 불참";
-            let btnStyle = "border-slate-200 bg-white text-slate-400 hover:bg-slate-50";
+            // 💡 꼴보기 싫은 텍스트 가변 다 걷어내고, 카드 크기를 완전 고정(h-[38px])합니다.
+            let btnStyle = "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"; // 기본 불참
             
             if (isAttending && !isResting) {
-                badgeText = "🏸 코트대기";
-                btnStyle = "border-indigo-400 bg-indigo-50 text-indigo-900 font-black shadow-2xs";
+                // 참석 (인디고 네온 하이라이트 효과)
+                btnStyle = "border-indigo-600 bg-indigo-50 text-indigo-900 font-black shadow-2xs ring-2 ring-indigo-500/20";
             } else if (isResting) {
-                badgeText = "💤 쉼터";
-                btnStyle = "border-rose-300 bg-rose-50 text-rose-700 font-bold";
+                // 쉼터 (로즈 톤 다운 하이라이트 효과)
+                btnStyle = "border-rose-400 bg-rose-50 text-rose-700 font-bold";
             }
 
             return `
-                <button data-id="${p.id}" data-name="${p.name}" class="btn-toggle-active border px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer ${btnStyle}">
+                <button data-id="${p.id}" data-name="${p.name}" class="btn-toggle-active border h-[38px] px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${btnStyle}">
                     <span>${p.name}</span>
-                    <span class="text-[8px] font-normal opacity-80">${badgeText}</span>
                 </button>
             `;
         }).join('');
         
-        restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 가동 시작 전에는 상단 전체 명단에서 통합 관리됩니다.</div>`;
+        restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 시작 전에는 위 통합 명단에서 [불참 ↔ 참석 ↔ 쉼터] 순서로 순환 토글됩니다.</div>`;
         
     } else {
-        // 🔥 [기존 가동부 명단 필터링]
-        const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
-        document.getElementById('attendeeCountLabel').innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
-
+        // 🔥 [정모 진행 중 단계]: 가동부 라이브 큐 레이아웃 디스플레이
         if (activeQueuePlayers.length === 0) {
             togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">현재 코트 대기 중인 회원이 없습니다.</div>`;
         } else {
             togglerBox.innerHTML = activeQueuePlayers.map(id => {
-                const p = window.allSystemPlayers.find(x => x.id === parseInt(id)); if (!p) return '';
+                const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
                 const isMe = p.name === myFixedName && myFixedName !== "";
                 const borderStyle = isMe 
                     ? "border-amber-400 bg-amber-50/50 text-amber-900 font-black ring-2 ring-amber-400/30 shadow-2xs" 
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
 
                 return `
-                    <button data-id="${id}" data-name="${p.name}" class="btn-toggle-active border px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${borderStyle}">
+                    <button data-id="${id}" data-name="${p.name}" class="btn-toggle-active border h-[38px] px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${borderStyle}">
                         <span>${p.name}</span>
                     </button>
                 `;
             }).join('');
         }
 
+        // 대기열 제외 인원(쉼터) 실시간 뷰어 마크업 드로잉
         if (restList.length === 0) {
             restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
         } else {
             restContainer.innerHTML = restList.map(id => {
-                const p = window.allSystemPlayers.find(x => x.id === parseInt(id)); if (!p) return '';
+                const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
                 const isMe = p.name === myFixedName && myFixedName !== "";
                 const borderStyle = isMe 
                     ? "border-amber-400 bg-amber-50/60 text-amber-900 font-black ring-2 ring-amber-400/40" 
                     : "border-rose-200 bg-rose-50/40 text-rose-700 hover:bg-rose-50";
 
                 return `
-                    <button data-id="${id}" data-name="${p.name}" class="btn-toggle-rest border px-2.5 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${borderStyle}">
+                    <button data-id="${id}" data-name="${p.name}" class="btn-toggle-rest border h-[38px] px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${borderStyle}">
                         <span>💤 ${p.name}</span>
                     </button>
                 `;
@@ -535,7 +537,9 @@ function renderAttendanceBox(s) {
         }
     }
 
-    // [이벤트 핸들러 연동]
+    // =======================================================
+    // 🎯 [순환 토글 이벤트 핸들러 패치 구역]
+    // =======================================================
     document.querySelectorAll('.btn-toggle-active').forEach(btn => {
         btn.onclick = function() {
             const pId = parseInt(this.getAttribute('data-id'));
@@ -543,32 +547,53 @@ function renderAttendanceBox(s) {
             const isMe = pName === myFixedName && myFixedName !== "";
 
             if (window.isAdminMode || isMe) {
+                let nextAttendees = [...attendees];
+                let nextRest = [...restList];
+
                 if (s.status === "예정") {
-                    commitAttendanceAction(pId);
+                    // 🔄 [예정 단계 순환 메커니즘]: 불참 -> 참석(코트대기) -> 쉼터 -> 불참 3단계 순환 구조
+                    if (!nextAttendees.includes(pId) && !nextRest.includes(pId)) {
+                        // 1. 불참 상태에서 누르면 -> 참석(코트대기) 진입
+                        nextAttendees.push(pId);
+                    } else if (nextAttendees.includes(pId) && !nextRest.includes(pId)) {
+                        // 2. 참석 상태에서 누르면 -> 쉼터(대기열제외) 이주
+                        nextRest.push(pId);
+                    } else {
+                        // 3. 쉼터 상태에서 누르면 -> 완전히 명단에서 제외 (불참 복귀)
+                        nextAttendees = nextAttendees.filter(x => x !== pId);
+                        nextRest = nextRest.filter(x => x !== pId);
+                    }
+                    
+                    update(ref(db, `sessions/${window.currentSessionKey}`), { 
+                        attendees: nextAttendees, 
+                        restPlayers: nextRest 
+                    });
                 } else {
+                    // 🔥 [진행중 단계 라이브 토글]
                     if (window.isAdminMode) {
                         const mode = confirm(`[${pName}] 님 상태 변경\n\n확인(OK) : 💤 대기열 제외 (쉼터 이동)\n취소(Cancel) : ❌ 오늘 정모 불참 (명단 완전 삭제)`);
                         if (mode) {
-                            let nextRest = [...restList]; if(!nextRest.includes(pId)) nextRest.push(pId);
+                            if(!nextRest.includes(pId)) nextRest.push(pId);
                             update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                         } else {
                             if (confirm(`⚠️ 정말로 [${pName}] 님을 오늘 정모 명단에서 완전히 삭제하시겠습니까?`)) {
-                                const nextAttendees = attendees.filter(x => parseInt(x) !== pId);
-                                const nextRest = restList.filter(x => parseInt(x) !== pId);
+                                nextAttendees = nextAttendees.filter(x => x !== pId);
+                                nextRest = nextRest.filter(x => x !== pId);
                                 update(ref(db, `sessions/${window.currentSessionKey}`), { attendees: nextAttendees, restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                             }
                         }
                     } else {
-                        let nextRest = [...restList]; if(!nextRest.includes(pId)) nextRest.push(pId);
+                        if(!nextRest.includes(pId)) nextRest.push(pId);
                         update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => recalculateLiveQueueMatch());
                     }
                 }
             } else {
-                alert("🔒 본인의 상태만 변경할 수 있습니다. (참석 ↔ 대기열 제외)");
+                alert("🔒 본인의 상태만 변경할 수 있습니다.");
             }
         };
     });
 
+    // 쉼터 무대 복귀 핸들러
     document.querySelectorAll('.btn-toggle-rest').forEach(btn => {
         btn.onclick = function() {
             const pId = parseInt(this.getAttribute('data-id'));
@@ -577,13 +602,13 @@ function renderAttendanceBox(s) {
 
             if (window.isAdminMode || isMe) {
                 if (confirm(`🏸 [${pName}] 님을 대기열에 다시 복귀시켜 매칭에 참여합니까?`)) {
-                    const nextRest = restList.filter(x => parseInt(x) !== pId);
+                    const nextRest = restList.filter(x => x !== pId);
                     update(ref(db, `sessions/${window.currentSessionKey}`), { restPlayers: nextRest }).then(() => {
                         if(s.status === "진행중") recalculateLiveQueueMatch();
                     });
                 }
             } else {
-                alert("🔒 본인의 상태만 변경할 수 있습니다. (참석 ↔ 대기열 제외)");
+                alert("🔒 본인의 상태만 변경할 수 있습니다.");
             }
         };
     });
