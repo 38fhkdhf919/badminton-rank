@@ -564,7 +564,7 @@ function renderAttendanceBox(s) {
 if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (내 경기 전용 버튼 노출 완벽 수정판)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (내 경기 한정 네온사인 집중 패치판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
@@ -616,17 +616,27 @@ function renderLiveCourtsGrid(s) {
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
         const cleanMyName = myFixedName.split('(')[0].trim();
         
-        // 🎯 내 경기가 맞는지 여부 실시간 판정
         const isMyMatch = !isObserverMode && allMatchPlayerNames.includes(cleanMyName);
         const isLive = m.status === "진행중";
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
-        // 🎨 카드 스킨 스타일링 지정
-        let cardBg = isLive ? "border border-indigo-400 bg-indigo-50/40 shadow-md" : "my-neon-match-card bg-amber-50/20";
-        if (isMyMatch) { cardBg = "my-neon-match-card bg-amber-50/40 scale-[1.01] border-amber-400"; }
+        // 🎯 [네온효과 조건 정밀 조정]
+        // 1. 경기 진행 중일 때는 고정 인디고 스타일링
+        // 2. 대기 상태일 때: '일반 관람 모드'이거나 '내 이름이 포함된 대진'일 때만 반짝이는 네온사인 효과 적용
+        // 3. 이름이 선택되어 있는데 '남의 경기'라면 네온 애니메이션 클래스를 주지 않고 일반 깔끔한 베이지/화이트 테두리로 격하
+        let cardBg = "";
+        if (isLive) {
+            cardBg = "border border-indigo-400 bg-indigo-50/40 shadow-md";
+        } else {
+            if (isObserverMode || isMyMatch) {
+                cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01] border-amber-400";
+            } else {
+                cardBg = "border border-slate-200 bg-white"; // 남의 경기는 평범하게 연출하여 시선 분산 방지
+            }
+        }
 
-        // 🎯 [핵심 패치]: 오직 '내 경기'이거나 '마스터 관리자' 권한일 때만 버튼을 노출, 남의 경기면 무조건 지워버림
+        // 오직 내 경기이거나 마스터 관리자일 때만 버튼 가동
         let ctrlBtn = '';
         if (isMyMatch || window.isAdminMode) {
             ctrlBtn = isLive 
@@ -634,7 +644,6 @@ function renderLiveCourtsGrid(s) {
                 : `<button data-id="${m.id}" class="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl cursor-pointer shadow-xs btn-start-match">▶ 경기시작</button>`;
         }
         
-        // AI정산 버튼도 철저하게 관리자 모드이면서 내 경기일 때만 제한적 노출 (관람 모드 차단)
         const aiBtn = (window.isAdminMode && isLive && s.isTestMode) 
             ? `<button data-id="${m.id}" class="btn-ai-simulate bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl ml-1 cursor-pointer">🤖 AI정산</button>` 
             : '';
@@ -648,7 +657,7 @@ function renderLiveCourtsGrid(s) {
                     <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
                 </div>`;
         } else {
-            // 아직 시작하지 않은 대진 카드 상단에는 노란색 네온 테두리와 함께 사이렌 문구 상시 깜빡임 표출
+            // 🎯 아직 시작 안 된 경기면 네온 반짝임 유무와 상관없이 '코트에 입장해 주세요' 문구는 동일하게 띄움
             statusBadge = `
                 <div class="flex items-center justify-between w-full">
                     <span class="text-[11px] font-black font-sans text-amber-600">⏳ 추천대진 ${idx + 1}순위 ${isMyMatch ? '🔥 내 경기!':''}</span>
@@ -704,7 +713,7 @@ function renderLiveCourtsGrid(s) {
             const names = getNamesFromIds(target.teamA, target.teamANames).concat(getNamesFromIds(target.teamB, target.teamBNames));
             
             if(window.isAdminMode || names.includes(myFixedName)) {
-                target.status = "진행중"; target.startedAt = Date.now();
+                target.status = " 진행중"; target.startedAt = Date.now();
                 update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches });
             } else { alert("🔒 대진 당사자 본인이 아니거나 관리자가 아닙니다."); }
         };
