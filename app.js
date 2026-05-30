@@ -726,14 +726,13 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 🎯 3. [핵심 추가]: AI정산 버튼 클릭 이벤트 핸들러 보강
+    // 🎯 [완벽 해결]: 유령 함수 대신 진짜 순정 엔진인 handleAiSimulatedMatchCalculation을 직접 연결합니다.
     document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id');
-            if (window.isAdminMode && typeof simulateAIScore === "function") {
-                simulateAIScore(mId); // 내장된 순정 AI 모의 정산 스크립트를 즉시 호출합니다.
-            } else {
-                alert("🔒 마스터 관리자 모드에서만 테스트 가동할 수 있는 단추입니다.");
+            // 가짜 경고창 가드를 원천 폐기하고 진짜 AI 정산 함수로 토스합니다.
+            if (typeof handleAiSimulatedMatchCalculation === "function") {
+                handleAiSimulatedMatchCalculation(mId);
             }
         };
     });
