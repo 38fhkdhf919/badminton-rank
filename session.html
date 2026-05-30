@@ -12,20 +12,21 @@
         }
         .hot-player-card { animation: fire-glow 1.5s infinite ease-in-out; background-color: #fffaf7 !important; border-width: 2px !important; }
 
+        /* ✨ 대기중인 대진에 적용될 노란색 네온사인 깜빡임 애니메이션 */
         @keyframes neon-pulse {
             0%, 100% { 
                 border-color: #fbbf24; 
-                box-shadow: 0 0 12px rgba(251, 191, 36, 0.4), inset 0 0 6px rgba(251, 191, 36, 0.2); 
+                box-shadow: 0 0 8px rgba(251, 191, 36, 0.3), inset 0 0 4px rgba(251, 191, 36, 0.1); 
             }
             50% { 
                 border-color: #f59e0b; 
-                box-shadow: 0 0 26px rgba(245, 158, 11, 0.9), inset 0 0 12px rgba(245, 158, 11, 0.5);
-                background-color: rgba(251, 191, 36, 0.08);
+                box-shadow: 0 0 16px rgba(245, 158, 11, 0.6), inset 0 0 8px rgba(245, 158, 11, 0.2);
+                background-color: rgba(251, 191, 36, 0.03);
             }
         }
         .my-neon-match-card { 
-            animation: neon-pulse 2.2s infinite ease-in-out; 
-            border-width: 2.5px !important;
+            animation: neon-pulse 2s infinite ease-in-out; 
+            border-width: 2px !important;
         }
 
         @keyframes pulse-red {
@@ -39,81 +40,6 @@
             50% { background-color: rgba(251, 191, 36, 0.4); box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.5); font-weight: 900; }
         }
         .highlight-row { animation: row-glow 1.5s infinite ease-in-out; border-left: 4px solid #f59e0b !important; }
-
-        /* 📺 [TV 전광판 스킨 v3 완결판] */
-        .tv-fullscreen-mode {
-            position: fixed !important; inset: 0 !important; z-index: 9999 !important;
-            background-color: #0b0f19 !important; padding: 2.5rem !important;
-            display: flex !important; flex-direction: column !important; justify-content: flex-start !important;
-            overflow: hidden !important;
-        }
-        
-        .tv-fullscreen-mode #unsubmittedAlertBox,
-        .tv-fullscreen-mode #beforeStartStatsBox,
-        .tv-fullscreen-mode h2 {
-            display: none !important;
-        }
-
-        .tv-fullscreen-mode #liveCourtsContainer {
-            display: flex !important; flex-direction: column !important;
-            gap: 1.75rem !important; width: 100% !important; height: 100% !important;
-            justify-content: center !important;
-        }
-
-        /* 🏟️ 대진 카드 와이드 바 디자인 (코트 수에 맞춰 1/N 꽉 차게 확장) */
-        .tv-fullscreen-mode .tv-card-unit {
-            display: flex !important; flex-direction: column !important; justify-content: center !important;
-            flex: 1 !important; width: 100% !important; padding: 2rem 3rem !important; 
-            background: #161e2e !important; border: 2px solid #243147 !important; border-radius: 2rem !important;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important; color: #f8fafc !important;
-            box-sizing: border-box !important; transition: all 0.3s ease !important;
-        }
-        
-        /* 대기 대진용 노란색 네온 테두리 깜빡임 강제 바인딩 */
-        .tv-fullscreen-mode .tv-waiting-neon-border {
-            animation: neon-pulse 1.8s infinite ease-in-out !important;
-            border-width: 3.5px !important;
-        }
-
-        .tv-fullscreen-mode .tv-card-header {
-            display: flex !important; justify-content: space-between !important; align-items: center !important;
-            border-bottom: 3px solid #1f293d !important; padding-bottom: 0.75rem !important; margin-bottom: 1.25rem !important;
-            width: 100% !important;
-        }
-
-        /* 👥 선수 이름 명찰 스펙 자이언트 최적화 */
-        .tv-fullscreen-mode .tv-player-row {
-            display: flex !important; width: 100% !important; align-items: center !important; justify-content: space-between !important; gap: 2rem !important;
-        }
-        .tv-fullscreen-mode .tv-team-box {
-            flex: 1 !important; font-size: 3rem !important; font-weight: 950 !important; color: #ffffff !important; 
-            background-color: #030712 !important; border: 3px solid #374151 !important; 
-            padding: 2rem !important; border-radius: 2rem !important; text-align: center !important;
-            box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.6) !important;
-            white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
-        }
-        .tv-fullscreen-mode .tv-vs-badge {
-            font-size: 2.6rem !important; color: #64748b !important; font-weight: 900 !important; flex-shrink: 0 !important;
-        }
-
-        /* ⏱️ 경기 시간 타이머 최적화 */
-        .tv-fullscreen-mode .match-live-stopwatch { 
-            font-size: 2.2rem !important; font-weight: 950 !important; color: #ffffff !important; 
-            background-color: #ef4444 !important; padding: 0.4rem 1.5rem !important; border-radius: 1rem !important;
-            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4) !important;
-        }
-        .tv-fullscreen-mode .tv-status-txt { font-size: 1.6rem !important; font-weight: 950 !important; color: #f8fafc !important; }
-        
-        /* 🚨 입장해 주세요 사이렌 텍스트 */
-        .tv-entry-siren {
-            font-size: 1.8rem !important; font-weight: 950 !important; color: #fbbf24 !important;
-            background-color: rgba(251, 191, 36, 0.15) !important; border: 2px solid #fbbf24 !important;
-            padding: 0.4rem 1.5rem !important; border-radius: 1rem !important;
-            box-shadow: 0 0 15px rgba(251, 191, 36, 0.3) !important;
-        }
-        
-        /* 전광판 모드 내 제어용 버튼 차단 */
-        .tv-fullscreen-mode button, .tv-fullscreen-mode .btn-ai-simulate { display: none !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-20 md:pb-6">
@@ -210,7 +136,6 @@
             <div class="space-y-3 relative">
                 <div class="flex justify-between items-center px-1">
                     <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">🏸 실시간 우선순위 대진 추천 현황</h2>
-                    <button id="btnTvDisplayLauncher" class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-sans text-[10px] px-2.5 py-1 rounded-xl font-black shadow-3xs cursor-pointer hover:bg-indigo-100 transition-all">📺 공용 TV 전광판 모드 열기</button>
                 </div>
                 
                 <div id="liveCourtsContainer" class="space-y-4"></div>
@@ -253,7 +178,6 @@
         </section>
     </main>
 
-    <!-- 스코어 모달 -->
     <div id="scoreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 transform transition-all space-y-4">
             <div class="border-b border-slate-100 pb-1 flex justify-between items-center">
@@ -314,33 +238,6 @@
                 else { btn.classList.remove('text-indigo-600', 'font-black'); btn.classList.add('text-slate-400', 'font-bold'); }
             });
         }
-
-        const tvLauncher = document.getElementById('btnTvDisplayLauncher');
-        if(tvLauncher) {
-            tvLauncher.onclick = function(e) {
-                e.preventDefault();
-                const targetArea = document.getElementById('sec-courts');
-                
-                if(!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().then(() => {
-                        targetArea.classList.add('tv-fullscreen-mode');
-                        tvLauncher.innerText = "❌ 전광판 모드 닫기 (Esc)";
-                        tvLauncher.className = "fixed bottom-6 right-6 z-[10000] bg-rose-600 text-white text-xs px-4 py-2.5 rounded-2xl font-black shadow-xl cursor-pointer";
-                    }).catch(err => { alert("전체화면 전환 실패: 기기 권한 부족"); });
-                } else {
-                    document.exitFullscreen();
-                }
-            };
-        }
-
-        document.addEventListener('fullscreenchange', () => {
-            const targetArea = document.getElementById('sec-courts');
-            if(!document.fullscreenElement) {
-                targetArea.classList.remove('tv-fullscreen-mode');
-                tvLauncher.innerText = "📺 공용 TV 전광판 모드 열기";
-                tvLauncher.className = "bg-indigo-50 border border-indigo-200 text-indigo-700 font-sans text-[10px] px-2.5 py-1 rounded-xl font-black shadow-3xs cursor-pointer hover:bg-indigo-100 transition-all";
-            }
-        });
 
         window.addEventListener('load', () => {
             setTimeout(() => {
