@@ -52,18 +52,18 @@ function getNamesFromIds(ids, fallbackNames) {
 }
 
 // ==========================================
-// 🏢 대문 메인 대시보드 통제 코어
+// 🏢 대문 메인 대시보드 통제 코어 (수정본)
 // ==========================================
 window.initDashboardPage = function() {
     const btnToggle = document.getElementById('btnAdminToggle');
     const wrapper = document.getElementById('adminButtonWrapper');
     
     if (btnToggle && wrapper) {
-        // 🎯 [여백 전면 해제 기믹]: 이미 로그인 검증된 관리자면 새로고침 시에도 높이를 유지하여 즉시 표출
-        if (isAdminMode) {
+        // [상태 동기화] 인증 여부에 따른 상단 높이 정의
+        if (window.isAdminMode) {
             btnToggle.innerText = "🔓 관리자 모드 인증 해제";
             btnToggle.className = "bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5";
-            wrapper.style.height = "auto";
+            wrapper.style.height = "38px";
             wrapper.style.marginTop = "0.5rem";
         } else {
             btnToggle.innerText = "🔐 마스터 관리자 인증";
@@ -72,7 +72,7 @@ window.initDashboardPage = function() {
             wrapper.style.marginTop = "0px";
         }
 
-        // 🎯 [이스터에그 엔진 교정]: 알림창 없이 5연타 즉시 공간 생성 기믹 가동
+        // 🎯 [버그 해결]: 시스템 알림창(alert)을 완벽 차단하고 5연타 시 즉시 드롭다운되도록 수정
         let clickCount = 0;
         let lastClickTime = 0;
         const triggerNode = document.getElementById('easterEggTrigger');
@@ -86,8 +86,8 @@ window.initDashboardPage = function() {
                 lastClickTime = currentTime;
 
                 if (clickCount === 5) {
-                    // 알림창(alert)을 전면 생략하고, 숨겨진 영역의 패딩 높이값만 실시간으로 플러스 연산 처리!
-                    wrapper.style.height = "42px"; 
+                    // 알림창 호출 없이 바로 컨테이너 높이를 부여하여 상단 배너를 플러스 확장시킵니다.
+                    wrapper.style.height = "38px"; 
                     wrapper.style.marginTop = "0.5rem";
                     btnToggle.classList.add('fire-rank-card');
                     clickCount = 0;
@@ -96,13 +96,13 @@ window.initDashboardPage = function() {
         }
 
         btnToggle.onclick = function() {
-            if (!isAdminMode) {
+            if (!window.isAdminMode) {
                 if (prompt("🔐 관리자 마스터 비밀번호를 입력하세요:") === "1234") {
-                    isAdminMode = true;
+                    window.isAdminMode = true;
                     localStorage.setItem("badminton_admin_login", "true");
                 } else { alert("❌ 비밀번호 불일치!"); return; }
             } else {
-                isAdminMode = false;
+                window.isAdminMode = false;
                 localStorage.setItem("badminton_admin_login", "false");
             }
             window.location.reload();
@@ -116,7 +116,7 @@ window.initDashboardPage = function() {
         const badgeCount = document.getElementById('sessionCountBadge');
         const testWrapper = document.getElementById('testModeWrapper');
         
-        if (testWrapper) testWrapper.style.display = isAdminMode ? 'flex' : 'none';
+        if (testWrapper) testWrapper.style.display = window.isAdminMode ? 'flex' : 'none';
         if (!container) return;
         
         if (!data) {
@@ -137,7 +137,7 @@ window.initDashboardPage = function() {
             if (s.status === "진행중") badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse";
             if (s.status === "종료") badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
             
-            const delBtn = isAdminMode ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 text-rose-600 border border-rose-200 font-bold text-[10px] px-2 py-0.5 rounded-lg cursor-pointer ml-2">🗑️</button>` : '';
+            const delBtn = window.isAdminMode ? `<button data-id="${id}" class="btn-delete-session bg-rose-50 text-rose-600 border border-rose-200 font-bold text-[10px] px-2 py-0.5 rounded-lg cursor-pointer ml-2">🗑️</button>` : '';
             const displayDate = s.date ? s.date : id.split('_')[0].replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
             const displayScore = s.targetScore ? `${s.targetScore}점 제` : "25점 제";
 
