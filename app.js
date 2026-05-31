@@ -864,6 +864,17 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
+    // 🎯 [이식 완료]: 경기종료창 잘못 눌렀을 때 닫아주는 ✕ 단추 리스너 분기
+    const scoreModalCloseBtn = document.getElementById('btnCloseScoreModal') || document.getElementById('btnCloseModal');
+    if (scoreModalCloseBtn) {
+        scoreModalCloseBtn.onclick = function() {
+            const scoreModal = document.getElementById('scoreModal');
+            if (scoreModal) {
+                scoreModal.classList.add('hidden');
+            }
+        };
+    }
+
     document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id');
