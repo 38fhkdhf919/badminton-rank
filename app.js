@@ -194,108 +194,94 @@ window.initDashboardPage = function() {
 };
 
 function calculateGlobalLeaderboard(allSessions) {
-
     const tbody = document.getElementById('globalRankTableBody');
-
     if (!tbody || window.allSystemPlayers.length === 0) return;
 
-
-
     let aggregateMap = {};
-
     window.allSystemPlayers.forEach(p => {
-
-        aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
-
+        // 🎯 방어 코드: 안전한 데이터 매핑을 위해 기본값 처리 보완
+        if (p && p.id) {
+            aggregateMap[p.id] = { id: p.id, name: p.name, tier: p.tier, baseMmr: p.displayMmr || 1000, win: 0, lose: 0, deltaSum: 0, historyTimeline: [] };
+        }
     });
 
-
-
-    const sortedSessions = Object.entries(allSessions).sort((a,b) => a[1].createdAt - b[1].createdAt);
+    // 🎯 방어 코드: 데이터가 비어있거나 불완전한 세션 통과 시 터지는 에러 방어막
+    const sortedSessions = Object.entries(allSessions || {})
+        .filter(([_, s]) => s && s.createdAt)
+        .sort((a,b) => a[1].createdAt - b[1].createdAt);
 
     sortedSessions.forEach(([sKey, s]) => {
-
-        if (s.statsLog) {
-
+        if (s && s.statsLog && Object.keys(s.statsLog).length > 0) {
             Object.entries(s.statsLog).forEach(([pId, log]) => {
-
                 const player = aggregateMap[pId];
-
-                if (player) {
-
-                    player.win += (log.win || 0); player.lose += (log.lose || 0); player.deltaSum += (log.delta || 0);
-
+                if (player && log) {
+                    player.win += (log.win || 0); 
+                    player.lose += (log.lose || 0); 
+                    player.deltaSum += (log.delta || 0);
                     player.historyTimeline.push(player.baseMmr + player.deltaSum);
-
                 }
-
             });
-
         }
-
     });
-
-
 
     let sortedList = Object.values(aggregateMap).sort((a, b) => (b.baseMmr + b.deltaSum) - (a.baseMmr + a.deltaSum));
+    
+    if (sortedList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">조회 가능한 통합 레이팅 데이터가 없습니다.</td></tr>`;
+        return;
+    }
 
     tbody.innerHTML = sortedList.map((p, idx) => {
-
         const total = p.win + p.lose;
-
         return `
-
             <tr class="hover:bg-indigo-50/40 transition-colors cursor-pointer btn-open-trend-chart" data-id="${p.id}" data-name="${p.name}" data-timeline="${JSON.stringify(p.historyTimeline)}">
-
                 <td class="py-2.5 px-4 text-center font-black text-slate-400 font-mono">${idx + 1}</td>
-
                 <td class="py-2.5 px-4 font-black text-indigo-950">${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.tier}조)</span></td>
-
                 <td class="py-2.5 px-4 text-center font-mono text-slate-500">${total}판</td>
-
                 <td class="py-2.5 px-4 text-center font-mono text-slate-600">${p.win}승 / ${p.lose}패</td>
-
                 <td class="py-2.5 px-4 text-center font-mono font-black text-indigo-600">${total>0?Math.round(p.win/total*100):0}%</td>
-
                 <td class="py-2.5 px-4 text-right font-black font-mono text-slate-900">${p.baseMmr + p.deltaSum}점</td>
-
             </tr>`;
-
     }).join('');
 
-
-
     document.querySelectorAll('.btn-open-trend-chart').forEach(tr => {
-
         tr.onclick = function() {
-
             const pId = this.getAttribute('data-id'); const pName = this.getAttribute('data-name');
-
-            const timeline = JSON.parse(this.getAttribute('data-timeline'));
-
+            const timelineStr = this.getAttribute('data-timeline');
+            if (!timelineStr) return;
+            
+            const timeline = JSON.parse(timelineStr);
             document.getElementById('modalPlayerTitle').innerText = `🏆 [${pName}] 회원 MMR 성장 곡선`;
-
             document.getElementById('chartModal').classList.remove('hidden');
-
-            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId].baseMmr];
-
+            const chartData = timeline.length > 0 ? timeline.slice(-7) : [aggregateMap[pId]?.baseMmr || 1000];
             const ctx = document.getElementById('playerTrendChart').getContext('2d');
-
             if (activeChartInstance) activeChartInstance.destroy();
-
+            
             activeChartInstance = new Chart(ctx, {
-
-                type: 'line', data: { labels: chartData.map((_, i) => `${i + 1}회차`), datasets: [{ data: chartData, borderColor: '#4f46e5', borderWidth: 3, fill: false }] },
-
+                type: 'line', 
+                data: { 
+                    labels: chartData.map((_, i) => `${i + 1}회차`), 
+                    datasets: [{ 
+                        label: '실시간 레이팅 (MMR)', // 🎯 GPT 피드백 반영: 범례 레이블 추가하여 undefined 해결
+                        data: chartData, 
+                        borderColor: '#4f46e5', 
+                        borderWidth: 3, 
+                        fill: false 
+                    }] 
+                },
                 options: { responsive: true, maintainAspectRatio: false }
-
             });
-
         };
-
     });
 
-} 
+    // 🎯 GPT 피드백 반영: index.html에 작성된 ✕ 버튼(btnCloseModal)에 창 닫기 이벤트 주입
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    if (btnCloseModal) {
+        btnCloseModal.onclick = function() {
+            document.getElementById('chartModal').classList.add('hidden');
+        };
+    }
+}
 
 
 
