@@ -841,6 +841,10 @@ function renderLiveCourtsGrid(s) {
         }
     }
 
+    // 🎯 [네온사인 효과 복구 핵심]: 지워졌던 본인 로그인 이름 매핑 변수를 정확히 재선언합니다.
+    const myFixedName = localStorage.getItem("my_badminton_name") || "";
+
+    // 1. 경기 시작 버튼 리스너
     document.querySelectorAll('.btn-start-match').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
@@ -854,6 +858,7 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
+    // 2. 경기 종료 버튼 리스너 (점수 입력창 open)
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
@@ -864,7 +869,7 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 🎯 [이식 완료]: 경기종료창 잘못 눌렀을 때 닫아주는 ✕ 단추 리스너 분기
+    // 🎯 경기종료창 잘못 눌렀을 때 닫아주는 ✕ 단추 리스너 분기 (유지)
     const scoreModalCloseBtn = document.getElementById('btnCloseScoreModal') || document.getElementById('btnCloseModal');
     if (scoreModalCloseBtn) {
         scoreModalCloseBtn.onclick = function() {
@@ -875,6 +880,7 @@ function renderLiveCourtsGrid(s) {
         };
     }
 
+    // 3. AI 정산 매크로 단추 리스너
     document.querySelectorAll('.btn-ai-simulate').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id');
@@ -884,6 +890,7 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
+    // 4. 대진 전체 자동화 시뮬레이션 루프 리스너
     const btnFullSim = document.getElementById('btnLiveFullSimulation');
     if (btnFullSim) {
         if (window.isAdminMode && s.isTestMode) {
@@ -897,7 +904,7 @@ function renderLiveCourtsGrid(s) {
             btnFullSim.classList.add('hidden');
         }
     }
-}
+} // renderLiveCourtsGrid 함수 종료 브래킷
 
 // ==========================================
 // 🤖 마스터 관리자 전용 AI 모의 정산 코어 엔진 (get 에러 원천 차단 패치판)
