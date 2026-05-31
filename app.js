@@ -841,8 +841,12 @@ function renderLiveCourtsGrid(s) {
         }
     }
 
-    // 🎯 [네온사인 효과 복구 핵심]: 지워졌던 본인 로그인 이름 매핑 변수를 정확히 재선언합니다.
-    const myFixedName = localStorage.getItem("my_badminton_name") || "";
+    // ==========================================================================
+    // 여기서부터 renderLiveCourtsGrid 함수 내부의 하단 리스너 및 제어 구역입니다.
+    // ==========================================================================
+    
+    // ❌ [이 한 줄을 완전히 삭제하거나 아래처럼 앞에 //를 붙여 주석 처리하세요!]
+    // const myFixedName = localStorage.getItem("my_badminton_name") || "";
 
     // 1. 경기 시작 버튼 리스너
     document.querySelectorAll('.btn-start-match').forEach(btn => {
@@ -904,7 +908,7 @@ function renderLiveCourtsGrid(s) {
             btnFullSim.classList.add('hidden');
         }
     }
-} // renderLiveCourtsGrid 함수 종료 브래킷
+}
 
 // ==========================================
 // 🤖 마스터 관리자 전용 AI 모의 정산 코어 엔진 (get 에러 원천 차단 패치판)
