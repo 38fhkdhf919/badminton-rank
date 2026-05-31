@@ -686,7 +686,7 @@ function renderAttendanceBox(s) {
 if (!window.liveMatchTimerInterval) { window.liveMatchTimerInterval = null; }
 
 // ==========================================
-// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (AI정산 이벤트 복구 완료판)
+// 🏟️ 실시간 추천 대진 카드 보드 렌더러 (본인 매치 네온사인 최우선 순위 패치판)
 // ==========================================
 function renderLiveCourtsGrid(s) {
     const liveContainer = document.getElementById('liveCourtsContainer'); if (!liveContainer) return;
@@ -734,7 +734,6 @@ function renderLiveCourtsGrid(s) {
         const aNamesStr = aNames.join(', '); 
         const bNamesStr = bNames.join(', ');
         
-        // 🎯 [홀딩방 유무 판별 가드] B팀이 비어있는 홀딩 상태인지 체크
         const isHoldingMode = !m.teamB || m.teamB.length === 0;
         
         const allMatchPlayerNames = aNames.concat(bNames).map(n => n.split('(')[0].trim());
@@ -745,18 +744,20 @@ function renderLiveCourtsGrid(s) {
         
         if (isMyMatch) { isMyMatchDetectedInList = true; }
         
+        // 🎯 [버그 수정 구역]: "내 경기" 판정 하이라이트를 가중치 최상위(1순위)로 격상시킵니다!
         let cardBg = "";
-        if (isLive) {
+        if (isMyMatch) {
+            // 진행 중이든 대기 중이든 내가 뛰는 경기라면 무조건 강렬한 골드 네온사인 발동
+            cardBg = "my-neon-match-card bg-amber-50/40 scale-[1.01] border-amber-400 shadow-lg ring-2 ring-amber-400/20";
+        } else if (isLive) {
+            // 타인의 경기이면서 진행 중일 때
             cardBg = "border border-indigo-400 bg-indigo-50/40 shadow-md";
         } else if (isHoldingMode) {
-            // 🎯 홀딩방은 차분한 슬레이트 점선 테두리 스타일로 시각적 격리
+            // 타인의 경기이면서 홀딩 매칭 대기 중일 때
             cardBg = "border border-dashed border-slate-300 bg-slate-50/50";
         } else {
-            if (isObserverMode || isMyMatch) {
-                cardBg = "my-neon-match-card bg-amber-50/30 scale-[1.01] border-amber-400";
-            } else {
-                cardBg = "border border-slate-200 bg-white";
-            }
+            // 일반 다른 회원들의 대기 경기 카드
+            cardBg = "border border-slate-200 bg-white";
         }
 
         let ctrlBtn = '';
@@ -779,7 +780,6 @@ function renderLiveCourtsGrid(s) {
                     <span class="match-live-stopwatch font-mono bg-rose-100 px-2 py-0.5 rounded-lg text-rose-700" data-start="${m.startedAt || Date.now()}">00:00</span>
                 </div>`;
         } else if (isHoldingMode) {
-            // 🎯 대기실 전용 배지 텍스트 안내 보정
             statusBadge = `
                 <div class="flex items-center justify-between w-full">
                     <span class="text-[11px] font-black font-sans text-slate-500">⏳ 밸런스 매칭 대기 중</span>
@@ -801,11 +801,7 @@ function renderLiveCourtsGrid(s) {
                 </div>
                 <div class="grid grid-cols-7 text-center items-center text-xs font-black text-slate-800">
                     <div class="col-span-3 bg-slate-50 border border-slate-200/60 p-2 rounded-xl truncate">${aNamesStr}</div>
-                    
-                    <!-- 🎯 홀딩 모드일 때는 대칭 구조가 아니므로 VS 대신 화살표 아이콘이나 탐색 아이콘 처리 -->
                     <div class="col-span-1 text-slate-300 font-mono">${isHoldingMode ? '🔍' : 'VS'}</div>
-                    
-                    <!-- 🎯 홀딩 모드일 때는 B팀 영역 레이아웃을 블러/연하게 처리하여 대기 상태 강조 -->
                     <div class="col-span-3 ${isHoldingMode ? 'bg-slate-100/70 text-slate-400 font-medium italic border border-dashed border-slate-200' : 'bg-slate-50 border border-slate-200/60 font-black text-slate-800'} p-2 rounded-xl truncate">
                         ${bNamesStr}
                     </div>
@@ -841,13 +837,6 @@ function renderLiveCourtsGrid(s) {
         }
     }
 
-    // ==========================================================================
-    // 여기서부터 renderLiveCourtsGrid 함수 내부의 하단 리스너 및 제어 구역입니다.
-    // ==========================================================================
-    
-    // ❌ [이 한 줄을 완전히 삭제하거나 아래처럼 앞에 //를 붙여 주석 처리하세요!]
-    // const myFixedName = localStorage.getItem("my_badminton_name") || "";
-
     // 1. 경기 시작 버튼 리스너
     document.querySelectorAll('.btn-start-match').forEach(btn => {
         btn.onclick = function() {
@@ -862,7 +851,7 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 2. 경기 종료 버튼 리스너 (점수 입력창 open)
+    // 2. 경기 종료 버튼 리스너
     document.querySelectorAll('.btn-open-score').forEach(btn => {
         btn.onclick = function() {
             const mId = this.getAttribute('data-id'); const target = currentMatches.find(x => x.id === mId); if(!target) return;
@@ -873,7 +862,7 @@ function renderLiveCourtsGrid(s) {
         };
     });
 
-    // 🎯 경기종료창 잘못 눌렀을 때 닫아주는 ✕ 단추 리스너 분기 (유지)
+    // 🎯 경기종료창 잘못 눌렀을 때 닫아주는 ✕ 단추 리스너 분기
     const scoreModalCloseBtn = document.getElementById('btnCloseScoreModal') || document.getElementById('btnCloseModal');
     if (scoreModalCloseBtn) {
         scoreModalCloseBtn.onclick = function() {
