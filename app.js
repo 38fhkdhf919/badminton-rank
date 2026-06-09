@@ -517,7 +517,7 @@ function commitAttendanceAction(pId) {
 }
 
 // ==========================================
-// 👥 이름 고정형 원터치 참석/쉼터 토글 인터페이스
+// 👥 [레이아웃 고정] 이름 고정형 원터치 참석/쉼터 토글 인터페이스 (예정 단계 클릭 버그 완전 해결)
 // ==========================================
 function renderAttendanceBox(s) {
     const togglerBox = document.getElementById('attendanceTogglerBox'); if (!togglerBox) return;
@@ -527,14 +527,19 @@ function renderAttendanceBox(s) {
     const restList = s.restPlayers ? s.restPlayers.map(id => parseInt(id)) : [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
 
+    // 1. 현재 대기열 제외(쉼터) 유저를 뺀 순수 코트 대기조 필터링
     const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
+
+    // 2. 상단 카운터 정보 직관적으로 인원수만 실시간 동기화
     document.getElementById('attendeeCountLabel').innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
 
+    // 시스템 풀 검사 가드
     if (window.allSystemPlayers.length === 0) {
         togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">회원 명단을 로드 중입니다...</div>`;
         return;
     }
 
+    // 🎯 [정모 예정 단계]: 이름만 딱 있고 선택 효과로만 제어하는 고정 크기 그리드
     if (s.status === "예정") {
         const sortedAllPlayers = [...window.allSystemPlayers].sort((a, b) => a.name.localeCompare(b.name));
         
@@ -542,10 +547,13 @@ function renderAttendanceBox(s) {
             const isAttending = attendees.includes(p.id);
             const isResting = restList.includes(p.id);
             
-            let btnStyle = "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"; 
+            let btnStyle = "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"; // 기본 불참
+            
             if (isAttending && !isResting) {
+                // 참석 (인디고 네온 하이라이트 효과)
                 btnStyle = "border-indigo-600 bg-indigo-50 text-indigo-900 font-black shadow-2xs ring-2 ring-indigo-500/20";
             } else if (isResting) {
+                // 쉼터 (로즈 톤 다운 하이라이트 효과)
                 btnStyle = "border-rose-400 bg-rose-50 text-rose-700 font-bold";
             }
 
@@ -559,6 +567,7 @@ function renderAttendanceBox(s) {
         restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 시작 전에는 위 통합 명단에서 [불참 ↔ 참석 ↔ 쉼터] 순서로 순환 토글됩니다.</div>`;
         
     } else {
+        // 🔥 [정모 진행 중 단계]: 가동부 라이브 큐 레이아웃 디스플레이
         if (activeQueuePlayers.length === 0) {
             togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">현재 코트 대기 중인 회원이 없습니다.</div>`;
         } else {
@@ -577,6 +586,7 @@ function renderAttendanceBox(s) {
             }).join('');
         }
 
+        // 대기열 제외 인원(쉼터) 실시간 뷰어 마크업 드로잉
         if (restList.length === 0) {
             restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
         } else {
@@ -597,7 +607,7 @@ function renderAttendanceBox(s) {
     }
 
     // ==========================================================================
-    // [버그 수정 구역] renderAttendanceBox 내부의 순환 토글 이벤트 핸들러 파트
+    // 🎯 [완벽 통합]: '예정'과 '진행중' 상관없이 클릭 시 무조건 바인딩되는 토글 핸들러 구역
     // ==========================================================================
     document.querySelectorAll('.btn-toggle-active').forEach(btn => {
         btn.onclick = function() {
@@ -610,6 +620,7 @@ function renderAttendanceBox(s) {
                 let nextRest = [...restList];
                 let currentMatches = s.currentMatches || [];
 
+                // 🎯 1. [예정 상태] 클릭 시: 불참 ↔ 참석 ↔ 쉼터 순환 엔진 가동 및 경로 보정
                 if (s.status === "예정") {
                     if (!nextAttendees.includes(pId) && !nextRest.includes(pId)) {
                         nextAttendees.push(pId);
@@ -622,8 +633,9 @@ function renderAttendanceBox(s) {
                     
                     const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
                     update(ref(db, targetPath), { attendees: nextAttendees, restPlayers: nextRest });
+                    
                 } else {
-                    // 🔥 [진행중 단계 라이브 토글]
+                    // 🔥 2. [진행중 상태] 클릭 시: 실시간 제어 스위치 가동
                     if (window.isAdminMode) {
                         const mode = confirm(`[${pName}] 님 상태 변경\n\n확인(OK) : 💤 대기열 제외 (쉼터 이동)\n취소(Cancel) : ❌ 오늘 정모 불참 (명단 완전 삭제)`);
                         if (mode) {
@@ -638,7 +650,6 @@ function renderAttendanceBox(s) {
                             });
 
                             const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
-                            // 🎯 [누락 해결]: 쉼터 이동 처리 데이터를 파이어베이스에 정상 전송(update)합니다.
                             update(ref(db, targetPath), { restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                         } else {
                             if (confirm(`⚠️ 정말로 [${pName}] 님을 오늘 정모 명단에서 완전히 삭제하시겠습니까?`)) {
@@ -654,7 +665,6 @@ function renderAttendanceBox(s) {
                                 });
 
                                 const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
-                                // 🎯 [누락 해결]: 불참 삭제 처리 데이터를 파이어베이스에 정상 전송(update)합니다.
                                 update(ref(db, targetPath), { attendees: nextAttendees, restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                             }
                         }
@@ -670,7 +680,6 @@ function renderAttendanceBox(s) {
                         });
 
                         const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
-                        // 🎯 [누락 해결]: 일반 회원의 실시간 쉼터런 데이터도 파이어베이스에 정상 전송(update)합니다.
                         update(ref(db, targetPath), { restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                     }
                 }
@@ -680,6 +689,7 @@ function renderAttendanceBox(s) {
         };
     });
 
+    // 쉼터 무대 복귀 핸들러 (진행중 전용)
     document.querySelectorAll('.btn-toggle-rest').forEach(btn => {
         btn.onclick = function() {
             const pId = parseInt(this.getAttribute('data-id'));
