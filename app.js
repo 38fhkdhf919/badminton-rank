@@ -965,7 +965,7 @@ function handleAiSimulatedMatchCalculation(matchId) {
         const deltaA = Math.round(32 * ((winTeamA ? 1 : 0) - expA));
         const deltaB = Math.round(32 * ((!winTeamA ? 1 : 0) - expB));
 
-        ...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
+        [...match.teamA, ...match.teamB].forEach(id => { if(!statsLog[id]) statsLog[id] = { win: 0, lose: 0, delta: 0 }; });
         match.teamA.forEach(id => { if(winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaA; });
         match.teamB.forEach(id => { if(!winTeamA) statsLog[id].win++; else statsLog[id].lose++; statsLog[id].delta += deltaB; });
     }
