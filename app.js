@@ -596,7 +596,9 @@ function renderAttendanceBox(s) {
         }
     }
 
-    // 🎯 [순환 토글 이벤트 핸들러 패치 구역]
+    // ==========================================================================
+    // [버그 수정 구역] renderAttendanceBox 내부의 순환 토글 이벤트 핸들러 파트
+    // ==========================================================================
     document.querySelectorAll('.btn-toggle-active').forEach(btn => {
         btn.onclick = function() {
             const pId = parseInt(this.getAttribute('data-id'));
@@ -627,7 +629,6 @@ function renderAttendanceBox(s) {
                         if (mode) {
                             if(!nextRest.includes(pId)) nextRest.push(pId);
                             
-                            // 🎯 [03 패치 적용]: 쉼터 이동 확정 즉시, 유령 박수호 현상 방지를 위해 내가 포함된 대기방 전체 파괴
                             let updatedMatches = currentMatches.filter(m => {
                                 if (m.status === "대기") {
                                     const hasMe = [...(m.teamA || []), ...(m.teamB || [])].map(id => parseInt(id)).includes(pId);
@@ -637,13 +638,13 @@ function renderAttendanceBox(s) {
                             });
 
                             const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
+                            // 🎯 [누락 해결]: 쉼터 이동 처리 데이터를 파이어베이스에 정상 전송(update)합니다.
                             update(ref(db, targetPath), { restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                         } else {
                             if (confirm(`⚠️ 정말로 [${pName}] 님을 오늘 정모 명단에서 완전히 삭제하시겠습니까?`)) {
                                 nextAttendees = nextAttendees.filter(x => x !== pId);
                                 nextRest = nextRest.filter(x => x !== pId);
                                 
-                                // 대기열 삭제 시에도 안전하게 대진 리셋 연동
                                 let updatedMatches = currentMatches.filter(m => {
                                     if (m.status === "대기") {
                                         const hasMe = [...(m.teamA || []), ...(m.teamB || [])].map(id => parseInt(id)).includes(pId);
@@ -653,6 +654,7 @@ function renderAttendanceBox(s) {
                                 });
 
                                 const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
+                                // 🎯 [누락 해결]: 불참 삭제 처리 데이터를 파이어베이스에 정상 전송(update)합니다.
                                 update(ref(db, targetPath), { attendees: nextAttendees, restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                             }
                         }
@@ -668,6 +670,7 @@ function renderAttendanceBox(s) {
                         });
 
                         const targetPath = s.isTestMode ? `test_sessions/${window.currentSessionKey}` : `sessions/${window.currentSessionKey}`;
+                        // 🎯 [누락 해결]: 일반 회원의 실시간 쉼터런 데이터도 파이어베이스에 정상 전송(update)합니다.
                         update(ref(db, targetPath), { restPlayers: nextRest, currentMatches: updatedMatches }).then(() => recalculateLiveQueueMatch());
                     }
                 }
