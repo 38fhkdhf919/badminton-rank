@@ -523,9 +523,15 @@ function commitAttendanceAction(pId) {
 // 👥 [레이아웃 고정] 조건별 원터치 참석/쉼터/비참석 분기 토글 인터페이스
 // ==========================================
 function renderAttendanceBox(s) {
-    const togglerBox = document.getElementById('attendanceTogglerBox'); if (!togglerBox) return;
-    const restContainer = document.getElementById('restPlayersContainer'); if (!restContainer) return;
-    const absentContainer = document.getElementById('absentPlayersContainer'); if (!absentContainer) return;
+    const togglerBox = document.getElementById('attendanceTogglerBox'); 
+    const restContainer = document.getElementById('restPlayersContainer'); 
+    const absentContainer = document.getElementById('absentPlayersContainer'); 
+
+    // 🎯 [핵심 방어 패치]: 필수 필수 DOM이 하나라도 없으면 빈 화면이 되는 가드를 제거하고, 존재하는 것만 안전하게 그리도록 변경
+    if (!togglerBox) {
+        console.warn("⚠️ '#attendanceTogglerBox' 엘리먼트를 찾을 수 없습니다.");
+        return;
+    }
 
     const attendees = s.attendees ? s.attendees.map(id => parseInt(id)) : [];
     const restList = s.restPlayers ? s.restPlayers.map(id => parseInt(id)) : [];
@@ -534,8 +540,11 @@ function renderAttendanceBox(s) {
     // 1. 현재 대기열 제외(쉼터) 유저를 뺀 순수 코트 대기조 필터링
     const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
 
-    // 2. 상단 카운터 정보 실시간 동기화
-    document.getElementById('attendeeCountLabel').innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
+    // 2. 상단 카운터 정보 실시간 동기화 (해당 레이블이 존재할 때만)
+    const attendeeCountLabel = document.getElementById('attendeeCountLabel');
+    if (attendeeCountLabel) {
+        attendeeCountLabel.innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
+    }
 
     // 시스템 풀 검사 가드
     if (window.allSystemPlayers.length === 0) {
@@ -585,8 +594,8 @@ function renderAttendanceBox(s) {
             return renderPlayerButton(p, currentStatus, p.name === myFixedName && myFixedName !== "");
         }).join('');
         
-        restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 가동 시작 시 상세 대기열 큐 레이아웃으로 전환됩니다.</div>`;
-        absentContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 예정 상태입니다.</div>`;
+        if (restContainer) restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 가동 시작 시 상세 대기열 큐 레이아웃으로 전환됩니다.</div>`;
+        if (absentContainer) absentContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">정모 예정 상태입니다.</div>`;
     } else {
         // [진행중 / 종료] 단계: 레이아웃별로 찢어서 가독성 극대화
         // 1. 참석 리스트 (코트 대기조)
@@ -600,23 +609,27 @@ function renderAttendanceBox(s) {
         }
 
         // 2. 대기열 제외 리스트 (쉼터)
-        if (restList.length === 0) {
-            restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
-        } else {
-            restContainer.innerHTML = restList.map(id => {
-                const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
-                return renderPlayerButton(p, "대기열제외", p.name === myFixedName && myFixedName !== "");
-            }).join('');
+        if (restContainer) {
+            if (restList.length === 0) {
+                restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
+            } else {
+                restContainer.innerHTML = restList.map(id => {
+                    const p = window.allSystemPlayers.find(x => x.id === id); if (!p) return '';
+                    return renderPlayerButton(p, "대기열제외", p.name === myFixedName && myFixedName !== "");
+                }).join('');
+            }
         }
 
         // 3. 미참석 / 귀가 회원 리스트
-        const absentList = allSystemPlayersSorted.filter(p => !attendees.includes(p.id));
-        if (absentList.length === 0) {
-            absentContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">모든 회원이 참석 중입니다.</div>`;
-        } else {
-            absentContainer.innerHTML = absentList.map(p => {
-                return renderPlayerButton(p, "비참석", p.name === myFixedName && myFixedName !== "");
-            }).join('');
+        if (absentContainer) {
+            const absentList = allSystemPlayersSorted.filter(p => !attendees.includes(p.id));
+            if (absentList.length === 0) {
+                absentContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">모든 회원이 참석 중입니다.</div>`;
+            } else {
+                absentContainer.innerHTML = absentList.map(p => {
+                    return renderPlayerButton(p, "비참석", p.name === myFixedName && myFixedName !== "");
+                }).join('');
+            }
         }
     }
 
@@ -682,7 +695,6 @@ function renderAttendanceBox(s) {
                 }
             }
 
-            // 🎯 [버그 해결]: ref(getDatabase(), ...)를 상단 선언부 싱크에 맞게 ref(db, ...)로 전면 교체[cite: 3]
             const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
             update(sessionRef, { 
                 attendees: nextAttendees, 
