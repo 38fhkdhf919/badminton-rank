@@ -621,7 +621,7 @@ function renderAttendanceBox(s) {
     }
 
     // =======================================================
-    // 🎯 [핵심 변경 규칙]: 권한 및 기존 상태별 클릭 이벤트 핸들러 주입
+    // 🎯 [이벤트 핸들러 주입]
     // =======================================================
     document.querySelectorAll('.btn-attendance-core').forEach(btn => {
         btn.onclick = function () {
@@ -630,7 +630,6 @@ function renderAttendanceBox(s) {
             const currentStatus = this.getAttribute('data-status');
             const isMe = pName === myFixedName && myFixedName !== "";
 
-            // 1차 권한 가드: 관리자이거나 본인인 경우에만 통과[cite: 2]
             if (!window.isAdminMode && !isMe) {
                 alert("🔒 본인의 상태만 변경할 수 있습니다.");
                 return;
@@ -640,15 +639,12 @@ function renderAttendanceBox(s) {
             let nextRest = [...restList];
 
             if (window.isAdminMode) {
-                // 👑 [관리자 권한 분기] 무조건 3가지 선택지가 주어짐[cite: 2]
                 if (currentStatus === "참석") {
                     const opt = confirm(`[${pName}] 님의 상태 변경\n\n확인(OK) : 💤 대기열제외 (쉼터 이동)\n취소(Cancel) : 🚫 비참석 처리`);
                     if (opt) {
-                        // 대기열 제외 처리
                         if (!nextRest.includes(pId)) nextRest.push(pId);
                         if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
                     } else {
-                        // 비참석 처리
                         nextAttendees = nextAttendees.filter(x => x !== pId);
                         nextRest = nextRest.filter(x => x !== pId);
                     }
@@ -656,11 +652,9 @@ function renderAttendanceBox(s) {
                 else if (currentStatus === "대기열제외") {
                     const opt = confirm(`[${pName}] 님의 상태 변경\n\n확인(OK) : 🏸 코트 대기열(참석) 복귀\n취소(Cancel) : 🚫 비참석 처리`);
                     if (opt) {
-                        // 참석 처리
                         nextRest = nextRest.filter(x => x !== pId);
                         if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
                     } else {
-                        // 비참석 처리
                         nextAttendees = nextAttendees.filter(x => x !== pId);
                         nextRest = nextRest.filter(x => x !== pId);
                     }
@@ -668,17 +662,14 @@ function renderAttendanceBox(s) {
                 else if (currentStatus === "비참석") {
                     const opt = confirm(`[${pName}] 님의 상태 변경\n\n확인(OK) : 🏸 코트 대기열(참석) 등록\n취소(Cancel) : 💤 대기열제외(쉼터 등록)`);
                     if (opt) {
-                        // 참석 처리
                         if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
                         nextRest = nextRest.filter(x => x !== pId);
                     } else {
-                        // 대기열 제외 처리
                         if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
                         if (!nextRest.includes(pId)) nextRest.push(pId);
                     }
                 }
             } else {
-                // 👤 [일반 유저 권한 분기] 알림창 없이 참석 ↔ 대기열제외 순환 토글[cite: 2]
                 if (currentStatus === "참석") {
                     if (!nextRest.includes(pId)) nextRest.push(pId);
                 } 
@@ -691,8 +682,8 @@ function renderAttendanceBox(s) {
                 }
             }
 
-            // 파이어베이스 원격 실시간 데이터베이스 트랜잭션 갱신 및 대진 재연산[cite: 3]
-            const sessionRef = ref(getDatabase(), `sessions/${window.currentSessionKey}`);
+            // 🎯 [버그 해결]: ref(getDatabase(), ...)를 상단 선언부 싱크에 맞게 ref(db, ...)로 전면 교체[cite: 3]
+            const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
             update(sessionRef, { 
                 attendees: nextAttendees, 
                 restPlayers: nextRest 
