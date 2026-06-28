@@ -527,7 +527,6 @@ function renderAttendanceBox(s) {
     const restContainer = document.getElementById('restPlayersContainer'); 
     const absentContainer = document.getElementById('absentPlayersContainer'); 
 
-    // 핵심 가드: 기본 대기열 컨테이너가 없으면 실행 차단
     if (!togglerBox) {
         console.warn("⚠️ '#attendanceTogglerBox' 엘리먼트를 찾을 수 없습니다.");
         return;
@@ -537,25 +536,20 @@ function renderAttendanceBox(s) {
     const restList = s.restPlayers ? s.restPlayers.map(id => parseInt(id)) : [];
     const myFixedName = localStorage.getItem("my_badminton_name") || "";
 
-    // 1. 현재 대기열 제외(쉼터) 유저를 뺀 순수 코트 대기조 필터링
     const activeQueuePlayers = attendees.filter(id => !restList.includes(id));
 
-    // 2. 상단 카운터 정보 실시간 동기화
     const attendeeCountLabel = document.getElementById('attendeeCountLabel');
     if (attendeeCountLabel) {
         attendeeCountLabel.innerText = `${attendees.length}명 참여 (대기 ${activeQueuePlayers.length} / 쉼터 ${restList.length})`;
     }
 
-    // 시스템 풀 검사 가드
     if (window.allSystemPlayers.length === 0) {
         togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">회원 명단을 로드 중입니다...</div>`;
         return;
     }
 
-    // 이름 가나다 순으로 마스터 회원 전체 정렬
     const allSystemPlayersSorted = [...window.allSystemPlayers].sort((a, b) => a.name.localeCompare(b.name));
 
-    // 상태 공통 탬플릿 컴포넌트 빌더
     const renderPlayerButton = (p, currentStatus, isMe) => {
         let btnStyle = "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"; 
         let prefix = "";
@@ -584,9 +578,7 @@ function renderAttendanceBox(s) {
         `;
     };
 
-    // =======================================================
-    // STEP 1: 상단 코트 대기조(참석) 명단 채우기 (상태 구분 삭제 후 일원화)
-    // =======================================================
+    // 1. 참석 리스트 드로잉
     if (activeQueuePlayers.length === 0) {
         togglerBox.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] w-full">현재 코트 대기 중인 회원이 없습니다.</div>`;
     } else {
@@ -596,9 +588,7 @@ function renderAttendanceBox(s) {
         }).join('');
     }
 
-    // =======================================================
-    // STEP 2: 중간 대기열 제외(쉼터) 명단 채우기
-    // =======================================================
+    // 2. 대기열 제외 리스트 (쉼터) 드로잉
     if (restContainer) {
         if (restList.length === 0) {
             restContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">현재 쉼터가 비어 있습니다.</div>`;
@@ -610,12 +600,13 @@ function renderAttendanceBox(s) {
         }
     }
 
-    // =======================================================
-    // STEP 3: 🔒 [관리자 전용] 하단 미참석 / 귀가 회원 보드 통제 노출
-    // =======================================================
+    // 3. 🚫 미참석 영역 노출 통제 파트
     if (absentContainer) {
+        // 부모 테두리 구역(border-t)을 확실하게 잡아오기 위해 상위 노드 타겟팅
+        const absentAreaWrapper = absentContainer.parentElement;
+        
         if (window.isAdminMode) {
-            // 관리자 모드일 경우에만 명단 데이터 추출 및 렌더링[cite: 2]
+            // 관리자 인증 상태일 때만 필터링 및 블록 개방[cite: 2]
             const absentList = allSystemPlayersSorted.filter(p => !attendees.includes(p.id));
             if (absentList.length === 0) {
                 absentContainer.innerHTML = `<div class="text-slate-400 text-[10px] py-1 italic">모든 회원이 참석 완료 상태입니다.</div>`;
@@ -624,17 +615,22 @@ function renderAttendanceBox(s) {
                     return renderPlayerButton(p, "비참석", p.name === myFixedName && myFixedName !== "");
                 }).join('');
             }
-            // 숨겨져 있던 부모 노드나 영역 레이아웃이 있다면 강제 개방
-            absentContainer.parentElement.style.display = 'block';
+            if (absAreaWrapper) {
+                absAreaWrapper.style.display = "block";
+                absAreaWrapper.classList.remove("hidden");
+            }
         } else {
-            // 관리자 모드가 아니면 보안 및 화면 가독성을 위해 완전히 숨김 처리[cite: 2]
+            // 일반 회원 모드일 때는 보드 제목과 공간을 통째로 증발시킴[cite: 2]
             absentContainer.innerHTML = "";
-            absentContainer.parentElement.style.display = 'none';
+            if (absAreaWrapper) {
+                absAreaWrapper.style.display = "none";
+                absAreaWrapper.classList.add("hidden");
+            }
         }
     }
 
     // =======================================================
-    // 🎯 [이벤트 핸들러 주입]
+    // 🎯 [이벤트 핸들러 바인딩]
     // =======================================================
     document.querySelectorAll('.btn-attendance-core').forEach(btn => {
         btn.onclick = function () {
@@ -673,7 +669,6 @@ function renderAttendanceBox(s) {
                     }
                 } 
                 else if (currentStatus === "비참석") {
-                    // 비참석 명단에서 바로 클릭 시 -> 참석(대기열 큐) 혹은 대기열제외(쉼터)로 직접 바인딩하여 이동 가능하게 가공[cite: 2]
                     const opt = confirm(`[${pName}] 님을 오늘 정모 명단에 복귀시킵니다.\n\n확인(OK) : 🏸 코트 대기열(참석) 즉시 등록\n취소(Cancel) : 💤 대기열제외(쉼터 등록)`);
                     if (opt) {
                         if (!nextAttendees.includes(pId)) nextAttendees.push(pId);
@@ -696,7 +691,6 @@ function renderAttendanceBox(s) {
                 }
             }
 
-            // 원격 파이어베이스 실시간 DB 업로드 트랜잭션 전송[cite: 3]
             const sessionRef = ref(db, `sessions/${window.currentSessionKey}`);
             update(sessionRef, { 
                 attendees: nextAttendees, 
