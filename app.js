@@ -1186,7 +1186,6 @@ function runV1Matching(s) {
     update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
 }
 
-// v2, v3 함수는 필요에 따라 아래에 구현하세요.
 function runV2Matching(s) {
     let currentMatches = s.currentMatches || [];
     const attendees = (s.attendees || []).map(id => parseInt(id));
@@ -1194,7 +1193,7 @@ function runV2Matching(s) {
     const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
-    // 📊 [절대 규칙] 경기 수 완벽 정산 장치
+    // 1. 📊 [최우선 조건] 회원별 오늘 실제 진행한 경기 수 계산
     let playCounts = {};
     attendees.forEach(id => playCounts[id] = 0);
     historyLog.forEach(m => {
@@ -1207,6 +1206,50 @@ function runV2Matching(s) {
     const maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
     const getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
 
+    // 최근 파트너 중복 검사용 맵 생성
+    const getRecentPartnerMap = () => {
+        const map = {};
+        const validMatches = historyLog.filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2);
+        const recentCycleMatches = validMatches.slice(-maxCourts);
+        recentCycleMatches.forEach(m => {
+            const players = [...m.teamA, ...m.teamB].map(id => parseInt(id));
+            players.forEach(player => {
+                if (!map[player]) map[player] = [];
+                players.forEach(id => { if (id !== player && !map[player].includes(id)) map[player].push(id); });
+            });
+        });
+        return map;
+    };
+    const recentPartnerMap = getRecentPartnerMap();
+
+    const canJoinGroup = (candidate, group) => {
+        const cId = parseInt(candidate);
+        for (const member of group) {
+            if ((recentPartnerMap[parseInt(member)] || []).includes(cId)) return false;
+        }
+        return true;
+    };
+
+    // 2. 🧠 [v2 핵심 인프라]: 각 회원의 직전 판 강도(60점 차이 여부) 판별기
+    // 리턴값: true = 직전에 비슷한 판(60점 이내)을 뜀 -> 이번엔 격차 판 턴
+    //        false = 직전에 격차 판(60점 초과)을 뜀 혹은 오늘 첫 판 -> 이번엔 비슷한 판 턴
+    const checkIfLastMatchWasClose = (pId) => {
+        const myMatches = historyLog.filter(m => {
+            if (!m.teamA || !m.teamB || m.teamA.length !== 2 || m.teamB.length !== 2) return false;
+            return m.teamA.map(Number).includes(pId) || m.teamB.map(Number).includes(pId);
+        });
+        if (myMatches.length === 0) return false; // 첫 판이면 비슷한 판(빡겜)부터 시작
+
+        const lastMatch = myMatches[myMatches.length - 1];
+        let sumA = 0, sumB = 0;
+        lastMatch.teamA.forEach(id => { sumA += (window.allSystemPlayers.find(x => x.id === parseInt(id))?.displayMmr || 1000); });
+        lastMatch.teamB.forEach(id => { sumB += (window.allSystemPlayers.find(x => x.id === parseInt(id))?.displayMmr || 1000); });
+        
+        const avgA = sumA / 2;
+        const avgB = sumB / 2;
+        return Math.abs(avgA - avgB) <= 60; // 직전 판 팀 평균 차이가 60점 이내였는지 여부 반환
+    };
+
     let finalMatches = currentMatches.filter(m => m.status === "진행중");
     let holdMatches = currentMatches.filter(m => m.status === "대기" && (!m.teamB || m.teamB.length === 0)).slice(0, 1);
     let busyIds = new Set(restList);
@@ -1218,74 +1261,139 @@ function runV2Matching(s) {
     const getRealMatchCount = () => finalMatches.filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2).length;
     let freePlayers = attendees.filter(id => !busyIds.has(id));
 
-    // 🧠 [v2 전용 내장형 팀 밸런싱 로직 부품]
-    const splitV2Teams = (fourGroup) => {
-        const players = fourGroup
-            .map(id => window.allSystemPlayers.find(p => p.id === id))
-            .filter(Boolean)
-            .sort((a, b) => b.displayMmr - a.displayMmr); // 1등부터 4등까지 실력순 나열
+    // 홀딩 매치는 간결한 구조 유지를 위해 스킵하고 신규 대진 큐 빌딩에 집중합니다.
+    if (holdMatches.length > 0) {
+        holdMatches.forEach(h => finalMatches.push(h)); // 기존 홀딩 유지
+    }
 
-        if (players.length !== 4) return { teamA: [fourGroup[0], fourGroup[3]], teamB: [fourGroup[1], fourGroup[2]] };
-
-        const rank1 = players[0].id, rank2 = players[1].id, rank3 = players[2].id, rank4 = players[3].id;
-        
-        // 🚨 의도 반영: 최고점과 최저점 격차가 100점 이상 벌어진 대형 매치인 경우
-        if (players[0].displayMmr - players[3].displayMmr >= 100) {
-            return { teamA: [rank1, rank4], teamB: [rank2, rank3] }; // 황금 밸런스 강제 지정
-        }
-        // 점수 차이가 크지 않다면 역사적으로 덜 묶여본 퐁당퐁당 조합으로 찢기
-        return createBalancedTeamsWithHistory(fourGroup, historyLog);
-    };
-
-    // 홀딩 매치 처리
-    holdMatches.forEach(hold => {
-        let group = (hold.teamA || []).map(id => parseInt(id));
-        group.forEach(id => busyIds.add(id));
-        while (group.length < 4 && freePlayers.length > 0) {
-            const nextCandidate = freePlayers.sort((a,b) => getAdjustedCount(a) - getAdjustedCount(b))[0];
-            group.push(nextCandidate);
-            busyIds.add(nextCandidate);
-            freePlayers = freePlayers.filter(x => x !== nextCandidate);
-        }
-        if (group.length === 4) {
-            const teamResult = splitV2Teams(group);
-            finalMatches.push({
-                id: `m_${Date.now()}_${Math.random()}`, status: "대기",
-                teamA: teamResult.teamA, teamB: teamResult.teamB,
-                teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
-            });
-        } else {
-            finalMatches.push({ ...hold, teamA: group, teamANames: getNamesFromIds(group) });
-        }
-    });
-
-    // 🚨 [v2 절대 기둥]: 무조건 덜 뛴 순서대로 줄을 세워 대기자 큐 빌딩
+    // 🚨 [대기자 최우선 정렬] 무조건 오늘 게임을 가장 적게 뛴 회원 순서대로 줄 세우기
     let freshQueue = attendees.filter(id => !busyIds.has(id)).sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
 
     while (getRealMatchCount() < maxCourts && freshQueue.length >= 4) {
-        // 가장 게임을 덜 뛴 앞선 4명을 가차없이 통째로 도려내어 선점 (실력 무관 회전 극대화)
-        let group = freshQueue.slice(0, 4);
+        const anchorId = freshQueue[0]; // 이번 판 무조건 들어가야 하는 1순위 대상자 (가장 적게 뛴 사람)
+        const anchorMmr = window.allSystemPlayers.find(x => x.id === anchorId)?.displayMmr || 1000;
+        const needGapMatch = checkIfLastMatchWasClose(anchorId); // 이 사람이 이번에 격차 판을 뛰어야 하는지 판별
+        
+        let group = [anchorId];
+        let pool = freshQueue.slice(1); // 앵커를 제외한 나머지 대기 인원 풀
 
-        const teamResult = splitV2Teams(group);
-        finalMatches.push({
-            id: `m_${Date.now()}_${finalMatches.length}`, status: "대기",
-            teamA: teamResult.teamA, teamB: teamResult.teamB,
-            teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
-        });
+        if (!needGapMatch) {
+            // ==========================================
+            // TYPE A: 점수 차이가 60점 이내인 비슷한 사람들끼리 매칭 (빡겜 턴)
+            // ==========================================
+            let candidates = pool.filter(id => {
+                const mmr = window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1000;
+                return Math.abs(mmr - anchorMmr) <= 60 && canJoinGroup(id, group);
+            });
 
+            // 제약 조건 충족이 어려울 시 파트너 중복 체크 완화
+            if (candidates.length < 3) {
+                candidates = pool.filter(id => {
+                    const mmr = window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1000;
+                    return Math.abs(mmr - anchorMmr) <= 60;
+                });
+            }
+
+            // 경기 수 매칭 보장을 위해 인원 강제 충족
+            if (candidates.length >= 3) {
+                group.push(...candidates.slice(0, 3));
+            } else {
+                // 주변에 60점 이내가 부족하면 그냥 서 있는 순서대로 채우기 (경기 수 우선 보장)
+                group.push(...pool.slice(0, 3));
+            }
+        } 
+        else {
+            // ==========================================
+            // TYPE B: 점수 차이가 60점보다 많이 나는 사람들과 매칭 (격차 로테이션 턴)
+            // ==========================================
+            // 1) 60점 이상 차이 나는 사람 중 경기 수가 적은 한 명을 우선 선별 (랜덤성 부여를 위해 대기 상위권 중 셔플)
+            let gapCandidates = pool.filter(id => {
+                const mmr = window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1000;
+                return Math.abs(mmr - anchorMmr) > 60;
+            });
+
+            if (gapCandidates.length === 0) {
+                // 풀에 아예 격차 유저가 없으면 어쩔 수 없이 대기 순서대로 매칭
+                group.push(...pool.slice(0, 3));
+            } else {
+                // 게임 수 불평등 방지를 위해 격차 후보군 중 가장 안 뛴 상위 3명 중 한 명을 무작위 선택
+                const targetGapPlayerId = gapCandidates.slice(0, 3)[Math.floor(Math.random() * Math.min(3, gapCandidates.length))];
+                group.push(targetGapPlayerId);
+
+                // 현재까지 선별된 2명 (나 + 격차 유저)
+                const p1Mmr = anchorMmr;
+                const p2Mmr = window.allSystemPlayers.find(x => x.id === targetGapPlayerId)?.displayMmr || 1000;
+
+                // 2) 먼저 선별된 두 명과 각각 실력이 비슷한 사람(+-40점 이내)을 한 명씩 더 뽑아서 4명 빌딩
+                let p1Partners = pool.filter(id => {
+                    if (group.includes(id)) return false;
+                    const mmr = window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1000;
+                    return Math.abs(mmr - p1Mmr) <= 40;
+                });
+                
+                let p2Partners = pool.filter(id => {
+                    if (group.includes(id)) return false;
+                    const mmr = window.allSystemPlayers.find(x => x.id === id)?.displayMmr || 1000;
+                    return Math.abs(mmr - p2Mmr) <= 40;
+                });
+
+                // 안전장치: +-40점 이내 파트너가 없을 경우 격차 한도를 80점까지 완화
+                if (p1Partners.length === 0) {
+                    p1Partners = pool.filter(id => !group.includes(id) && Math.abs((window.allSystemPlayers.find(x=>x.id===id)?.displayMmr || 1000) - p1Mmr) <= 80);
+                }
+                if (p2Partners.length === 0) {
+                    p2Partners = pool.filter(id => !group.includes(id) && Math.abs((window.allSystemPlayers.find(x=>x.id===id)?.displayMmr || 1000) - p2Mmr) <= 80);
+                }
+
+                // 매칭 최종 확정 및 어레이 주입
+                const part1 = p1Partners[0] || pool.filter(id => !group.includes(id))[0];
+                if (part1) group.push(part1);
+                
+                const part2 = p2Partners.filter(id => !group.includes(id))[0] || pool.filter(id => !group.includes(id))[0];
+                if (part2) group.push(part2);
+            }
+        }
+
+        // 인원수가 최종 4명으로 조율되었을 때 대진 확정 및 팀 찢기
+        if (group.length === 4) {
+            const finalPlayers = group
+                .map(id => window.allSystemPlayers.find(p => p.id === id))
+                .filter(Boolean)
+                .sort((a, b) => b.displayMmr - a.displayMmr); // 1등부터 4등까지 실력 정렬
+
+            const r1 = finalPlayers[0].id, r2 = finalPlayers[1].id, r3 = finalPlayers[2].id, r4 = finalPlayers[3].id;
+            
+            let teamA, teamB;
+            // 격차 매칭 턴이거나 4명의 실력차가 실제로 있는 경우 무조건 1+4 vs 2+3 지정
+            if (needGapMatch || (finalPlayers[0].displayMmr - finalPlayers[3].displayMmr >= 60)) {
+                teamA = [r1, r4];
+                teamB = [r2, r3];
+            } else {
+                // 비슷한 매칭 턴일 경우 기존의 안 묶여본 역사적 이력 기반 포지셔닝 호출
+                const v1Result = createBalancedTeamsWithHistory(group, historyLog);
+                teamA = v1Result.teamA;
+                teamB = v1Result.teamB;
+            }
+
+            finalMatches.push({
+                id: `m_${Date.now()}_${finalMatches.length}`,
+                status: "대기",
+                teamA, teamB,
+                teamANames: getNamesFromIds(teamA),
+                teamBNames: getNamesFromIds(teamB)
+            });
+        }
+
+        // 선점된 그룹 유저들 대기열 처리 리셋 시퀀스
         group.forEach(id => busyIds.add(id));
         freshQueue = freshQueue.filter(id => !busyIds.has(id));
     }
 
-    // 잔여 인원에 대한 홀딩 방 처리
-    if (getRealMatchCount() < maxCourts && freshQueue.length > 0 && freshQueue.length < 4) {
-        const anchorId = freshQueue[0];
-        if (!finalMatches.some(m => !m.teamB || m.teamB.length === 0)) {
-            finalMatches.push({ id: `hold_${anchorId}`, status: "대기", teamA: [...freshQueue], teamB: [], teamANames: getNamesFromIds([...freshQueue]), teamBNames: [] });
-        }
-    }
-
-    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
+    // 파이어베이스 원격 데이터베이스 최종 업데이트 송출
+    update(
+        ref(db, `sessions/${window.currentSessionKey}`),
+        { currentMatches: finalMatches }
+    );
 }
 function runV3Matching(s) { console.log("v3 매칭 로직 가동"); }
 
