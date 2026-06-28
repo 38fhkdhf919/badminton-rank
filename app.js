@@ -1000,48 +1000,31 @@ function handleAiSimulatedMatchCalculation(matchId) {
     });
 }
 
-// 🎯 팀 조합 히스토리를 분석하여 최적의 조합을 반환하는 내포 함수 (타입 가드 완료)
+// ==========================================
+// 🤝 [v1 코어] 순수 히스토리 기반 2:2 팀 분배 엔진
+// ==========================================
 function createBalancedTeamsWithHistory(group, historyLog) {
-    // 🎯 ID 데이터 타입을 숫자로 강제 통일하여 비교 연산 오류 방어
     const cleanGroup = group.map(id => parseInt(id));
 
     const combos = [
-        [
-            [cleanGroup[0], cleanGroup[3]],
-            [cleanGroup[1], cleanGroup[2]]
-        ],
-        [
-            [cleanGroup[0], cleanGroup[2]],
-            [cleanGroup[1], cleanGroup[3]]
-        ],
-        [
-            [cleanGroup[0], cleanGroup[1]],
-            [cleanGroup[2], cleanGroup[3]]
-        ]
+        [[cleanGroup[0], cleanGroup[3]], [cleanGroup[1], cleanGroup[2]]],
+        [[cleanGroup[0], cleanGroup[2]], [cleanGroup[1], cleanGroup[3]]],
+        [[cleanGroup[0], cleanGroup[1]], [cleanGroup[2], cleanGroup[3]]]
     ];
 
     const recentMatches = historyLog
-        .filter(m =>
-            m.teamA &&
-            m.teamB &&
-            m.teamA.length === 2 &&
-            m.teamB.length === 2
-        )
+        .filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2)
         .slice(-20);
 
     const countPairHistory = (p1, p2) => {
         let count = 0;
         recentMatches.forEach(m => {
-            // 비교 대상을 모두 정수로 파싱하여 타입 불일치 버그 원천 차단
             const teamA = (m.teamA || []).map(id => parseInt(id));
             const teamB = (m.teamB || []).map(id => parseInt(id));
-            const teams = [teamA, teamB];
-
-            teams.forEach(team => {
-                if (team.includes(parseInt(p1)) && team.includes(parseInt(p2))) {
-                    count++;
-                }
-            });
+            if ((teamA.includes(parseInt(p1)) && teamA.includes(parseInt(p2))) ||
+                (teamB.includes(parseInt(p1)) && teamB.includes(parseInt(p2)))) {
+                count++;
+            }
         });
         return count;
     };
@@ -1052,21 +1035,14 @@ function createBalancedTeamsWithHistory(group, historyLog) {
     combos.forEach(combo => {
         const teamA = combo[0];
         const teamB = combo[1];
-
-        const score =
-            countPairHistory(teamA[0], teamA[1]) +
-            countPairHistory(teamB[0], teamB[1]);
-
+        const score = countPairHistory(teamA[0], teamA[1]) + countPairHistory(teamB[0], teamB[1]);
         if (score < bestScore) {
             bestScore = score;
             bestCombo = combo;
         }
     });
 
-    return {
-        teamA: bestCombo[0],
-        teamB: bestCombo[1]
-    };
+    return { teamA: bestCombo[0], teamB: bestCombo[1] };
 }
 
 function recalculateLiveQueueMatch() {
@@ -1086,175 +1062,93 @@ function recalculateLiveQueueMatch() {
 
 function runV1Matching(s) {
     let currentMatches = s.currentMatches || [];
-
-    // 🎯 [타입 싱크 마스터 패치]: attendees와 restList 내부의 모든 ID를 즉시 정수 배열로 강제 가공
     const attendees = (s.attendees || []).map(id => parseInt(id));
     const restList = (s.restPlayers || []).map(id => parseInt(id));
     const historyLog = s.historyLog || [];
     const maxCourts = s.courts || 2;
 
-    // MMR 점수 기준으로 정렬
-    const sortedPlayers = [...window.allSystemPlayers]
-        .sort((a, b) => b.displayMmr - a.displayMmr);
-
+    const sortedPlayers = [...window.allSystemPlayers].sort((a, b) => b.displayMmr - a.displayMmr);
     const rankMap = {};
-    sortedPlayers.forEach((p, idx) => {
-        if (p && p.id) rankMap[parseInt(p.id)] = idx + 1;
-    });
+    sortedPlayers.forEach((p, idx) => { if (p && p.id) rankMap[parseInt(p.id)] = idx + 1; });
 
-    // 회원별 경기 수 계산 로직 내포화
     let playCounts = {};
     attendees.forEach(id => playCounts[id] = 0);
-
     historyLog.forEach(m => {
-        if (!m.teamA || !m.teamB || m.teamA.length !== 2 || m.teamB.length !== 2) {
-            return;
-        }
+        if (!m.teamA || !m.teamB || m.teamA.length !== 2 || m.teamB.length !== 2) return;
         const matchPlayers = [...m.teamA, ...m.teamB].map(id => parseInt(id));
-        matchPlayers.forEach(id => {
-            if (playCounts[id] !== undefined) {
-                playCounts[id]++;
-            }
-        });
+        matchPlayers.forEach(id => { if (playCounts[id] !== undefined) playCounts[id]++; });
     });
 
-    const activePlayCounts = attendees
-        .filter(id => !restList.includes(id))
-        .map(id => playCounts[id] || 0);
-
+    const activePlayCounts = attendees.filter(id => !restList.includes(id)).map(id => playCounts[id] || 0);
     const maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
     const getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
 
-    // 최근 파트너 맵 생성 로직 내포화
     const getRecentPartnerMap = () => {
         const map = {};
-        const validMatches = historyLog.filter(m =>
-            m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
-        );
+        const validMatches = historyLog.filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2);
         const recentCycleMatches = validMatches.slice(-maxCourts);
-
         recentCycleMatches.forEach(m => {
             const players = [...m.teamA, ...m.teamB].map(id => parseInt(id));
             players.forEach(player => {
-                if (!map[player]) {
-                    map[player] = [];
-                }
-                players.forEach(id => {
-                    if (id !== player && !map[player].includes(id)) {
-                        map[player].push(id);
-                    }
-                });
+                if (!map[player]) map[player] = [];
+                players.forEach(id => { if (id !== player && !map[player].includes(id)) map[player].push(id); });
             });
         });
         return map;
     };
-
     const recentPartnerMap = getRecentPartnerMap();
 
-    // 중복 매칭 방지 검사 함수 내포화
     const canJoinGroup = (candidate, group) => {
         const cId = parseInt(candidate);
         for (const member of group) {
             const mId = parseInt(member);
-            const recent = recentPartnerMap[mId] || [];
-            if (recent.includes(cId)) {
-                return false;
-            }
+            if ((recentPartnerMap[mId] || []).includes(cId)) return false;
         }
         return true;
     };
 
     let finalMatches = currentMatches.filter(m => m.status === "진행중");
-    let holdMatches = currentMatches.filter(
-        m => m.status === "대기" && (!m.teamB || m.teamB.length === 0)
-    ).slice(0, 1);
-
+    let holdMatches = currentMatches.filter(m => m.status === "대기" && (!m.teamB || m.teamB.length === 0)).slice(0, 1);
     let busyIds = new Set(restList);
     finalMatches.forEach(m => {
         (m.teamA || []).forEach(id => busyIds.add(parseInt(id)));
         (m.teamB || []).forEach(id => busyIds.add(parseInt(id)));
     });
 
-    const getRealMatchCount = () => {
-        return finalMatches.filter(m =>
-            m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2
-        ).length;
-    };
-
-    // ==========================================
-    // STEP 1: 기존 홀딩방 우선 매칭 채우기
-    // ==========================================
+    const getRealMatchCount = () => finalMatches.filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2).length;
     let freePlayers = attendees.filter(id => !busyIds.has(id));
 
     holdMatches.forEach(hold => {
         let group = (hold.teamA || []).map(id => parseInt(id));
         group.forEach(id => busyIds.add(id));
-
         while (group.length < 4) {
             const anchorRank = rankMap[group[0]];
-
             let candidate = freePlayers.find(id => {
                 const cId = parseInt(id);
                 if (group.includes(cId)) return false;
-                const rank = rankMap[cId];
-                if (Math.abs(rank - anchorRank) > 4) return false;
-                return canJoinGroup(cId, group);
+                return Math.abs(rankMap[cId] - anchorRank) <= 4 && canJoinGroup(cId, group);
             });
-
             if (!candidate) {
-                candidate = freePlayers.find(id => {
-                    const cId = parseInt(id);
-                    if (group.includes(cId)) return false;
-                    const rank = rankMap[cId];
-                    return Math.abs(rank - anchorRank) <= 4;
-                });
+                candidate = freePlayers.find(id => group.includes(parseInt(id)) ? false : Math.abs(rankMap[parseInt(id)] - anchorRank) <= 4);
             }
-
             if (!candidate) break;
-
-            const finalCandidateId = parseInt(candidate);
-            group.push(finalCandidateId);
-            busyIds.add(finalCandidateId);
-            freePlayers = freePlayers.filter(x => parseInt(x) !== finalCandidateId);
+            group.push(parseInt(candidate));
+            busyIds.add(parseInt(candidate));
+            freePlayers = freePlayers.filter(x => parseInt(x) !== parseInt(candidate));
         }
-
         if (group.length === 4) {
-            const players = group
-                .map(id => window.allSystemPlayers.find(p => p.id === id))
-                .filter(Boolean)
-                .sort((a, b) => b.displayMmr - a.displayMmr);
-
-            const teamResult = createBalancedTeamsWithHistory(
-                players.map(p => p.id),
-                historyLog
-            );
-
-            const teamA = teamResult.teamA;
-            const teamB = teamResult.teamB;
-
+            const teamResult = createBalancedTeamsWithHistory(group, historyLog);
             finalMatches.push({
-                id: `m_${Date.now()}_${Math.random()}`,
-                status: "대기",
-                teamA,
-                teamB,
-                teamANames: getNamesFromIds(teamA),
-                teamBNames: getNamesFromIds(teamB)
+                id: `m_${Date.now()}_${Math.random()}`, status: "대기",
+                teamA: teamResult.teamA, teamB: teamResult.teamB,
+                teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
             });
         } else {
-            finalMatches.push({
-                ...hold,
-                teamA: group,
-                teamANames: getNamesFromIds(group)
-            });
+            finalMatches.push({ ...hold, teamA: group, teamANames: getNamesFromIds(group) });
         }
     });
 
-    // ==========================================
-    // STEP 2: 신규 대진 생성 (경기수 적은 사람 우선 정렬)
-    // ==========================================
-    let freshQueue = attendees
-        .filter(id => !busyIds.has(id))
-        .sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
+    let freshQueue = attendees.filter(id => !busyIds.has(id)).sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
 
     while (getRealMatchCount() < maxCourts && freshQueue.length > 0) {
         const anchorId = freshQueue[0];
@@ -1263,78 +1157,136 @@ function runV1Matching(s) {
 
         for (let i = 1; i < freshQueue.length; i++) {
             const candidate = freshQueue[i];
-            const rank = rankMap[candidate];
-
-            if (Math.abs(rank - anchorRank) > 4) continue;
-            if (canJoinGroup(candidate, group)) {
-                group.push(candidate);
-            }
+            if (Math.abs(rankMap[candidate] - anchorRank) <= 4 && canJoinGroup(candidate, group)) group.push(candidate);
             if (group.length === 4) break;
         }
-
         if (group.length < 4) {
             for (let i = 1; i < freshQueue.length; i++) {
                 const candidate = freshQueue[i];
-                if (group.includes(candidate)) continue;
-                const rank = rankMap[candidate];
-
-                if (Math.abs(rank - anchorRank) <= 4) {
-                    group.push(candidate);
-                }
+                if (!group.includes(candidate) && Math.abs(rankMap[candidate] - anchorRank) <= 4) group.push(candidate);
                 if (group.length === 4) break;
             }
         }
-
         if (group.length === 4) {
-            const players = group
-                .map(id => window.allSystemPlayers.find(p => p.id === id))
-                .filter(Boolean)
-                .sort((a, b) => b.displayMmr - a.displayMmr);
-
-            const teamResult = createBalancedTeamsWithHistory(
-                players.map(p => p.id),
-                historyLog
-            );
-
-            const teamA = teamResult.teamA;
-            const teamB = teamResult.teamB;
-
+            const teamResult = createBalancedTeamsWithHistory(group, historyLog);
             finalMatches.push({
-                id: `m_${Date.now()}_${finalMatches.length}`,
-                status: "대기",
-                teamA,
-                teamB,
-                teamANames: getNamesFromIds(teamA),
-                teamBNames: getNamesFromIds(teamB)
+                id: `m_${Date.now()}_${finalMatches.length}`, status: "대기",
+                teamA: teamResult.teamA, teamB: teamResult.teamB,
+                teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
             });
         } else {
-            const alreadyHasHold = finalMatches.some(m => !m.teamB || m.teamB.length === 0);
-
-            if (!alreadyHasHold) {
-                finalMatches.push({
-                    id: `hold_${anchorId}`,
-                    status: "대기",
-                    teamA: group,
-                    teamB: [],
-                    teamANames: getNamesFromIds(group),
-                    teamBNames: []
-                });
+            if (!finalMatches.some(m => !m.teamB || m.teamB.length === 0)) {
+                finalMatches.push({ id: `hold_${anchorId}`, status: "대기", teamA: group, teamB: [], teamANames: getNamesFromIds(group), teamBNames: [] });
             }
         }
+        group.forEach(id => busyIds.add(id));
+        freshQueue = freshQueue.filter(id => !busyIds.has(id));
+    }
+
+    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
+}
+
+// v2, v3 함수는 필요에 따라 아래에 구현하세요.
+function runV2Matching(s) {
+    let currentMatches = s.currentMatches || [];
+    const attendees = (s.attendees || []).map(id => parseInt(id));
+    const restList = (s.restPlayers || []).map(id => parseInt(id));
+    const historyLog = s.historyLog || [];
+    const maxCourts = s.courts || 2;
+
+    // 📊 [절대 규칙] 경기 수 완벽 정산 장치
+    let playCounts = {};
+    attendees.forEach(id => playCounts[id] = 0);
+    historyLog.forEach(m => {
+        if (!m.teamA || !m.teamB || m.teamA.length !== 2 || m.teamB.length !== 2) return;
+        const matchPlayers = [...m.teamA, ...m.teamB].map(id => parseInt(id));
+        matchPlayers.forEach(id => { if (playCounts[id] !== undefined) playCounts[id]++; });
+    });
+
+    const activePlayCounts = attendees.filter(id => !restList.includes(id)).map(id => playCounts[id] || 0);
+    const maxPlayCount = activePlayCounts.length > 0 ? Math.max(...activePlayCounts) : 0;
+    const getAdjustedCount = (id) => Math.min(playCounts[id] || 0, maxPlayCount);
+
+    let finalMatches = currentMatches.filter(m => m.status === "진행중");
+    let holdMatches = currentMatches.filter(m => m.status === "대기" && (!m.teamB || m.teamB.length === 0)).slice(0, 1);
+    let busyIds = new Set(restList);
+    finalMatches.forEach(m => {
+        (m.teamA || []).forEach(id => busyIds.add(parseInt(id)));
+        (m.teamB || []).forEach(id => busyIds.add(parseInt(id)));
+    });
+
+    const getRealMatchCount = () => finalMatches.filter(m => m.teamA && m.teamB && m.teamA.length === 2 && m.teamB.length === 2).length;
+    let freePlayers = attendees.filter(id => !busyIds.has(id));
+
+    // 🧠 [v2 전용 내장형 팀 밸런싱 로직 부품]
+    const splitV2Teams = (fourGroup) => {
+        const players = fourGroup
+            .map(id => window.allSystemPlayers.find(p => p.id === id))
+            .filter(Boolean)
+            .sort((a, b) => b.displayMmr - a.displayMmr); // 1등부터 4등까지 실력순 나열
+
+        if (players.length !== 4) return { teamA: [fourGroup[0], fourGroup[3]], teamB: [fourGroup[1], fourGroup[2]] };
+
+        const rank1 = players[0].id, rank2 = players[1].id, rank3 = players[2].id, rank4 = players[3].id;
+        
+        // 🚨 의도 반영: 최고점과 최저점 격차가 100점 이상 벌어진 대형 매치인 경우
+        if (players[0].displayMmr - players[3].displayMmr >= 100) {
+            return { teamA: [rank1, rank4], teamB: [rank2, rank3] }; // 황금 밸런스 강제 지정
+        }
+        // 점수 차이가 크지 않다면 역사적으로 덜 묶여본 퐁당퐁당 조합으로 찢기
+        return createBalancedTeamsWithHistory(fourGroup, historyLog);
+    };
+
+    // 홀딩 매치 처리
+    holdMatches.forEach(hold => {
+        let group = (hold.teamA || []).map(id => parseInt(id));
+        group.forEach(id => busyIds.add(id));
+        while (group.length < 4 && freePlayers.length > 0) {
+            const nextCandidate = freePlayers.sort((a,b) => getAdjustedCount(a) - getAdjustedCount(b))[0];
+            group.push(nextCandidate);
+            busyIds.add(nextCandidate);
+            freePlayers = freePlayers.filter(x => x !== nextCandidate);
+        }
+        if (group.length === 4) {
+            const teamResult = splitV2Teams(group);
+            finalMatches.push({
+                id: `m_${Date.now()}_${Math.random()}`, status: "대기",
+                teamA: teamResult.teamA, teamB: teamResult.teamB,
+                teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
+            });
+        } else {
+            finalMatches.push({ ...hold, teamA: group, teamANames: getNamesFromIds(group) });
+        }
+    });
+
+    // 🚨 [v2 절대 기둥]: 무조건 덜 뛴 순서대로 줄을 세워 대기자 큐 빌딩
+    let freshQueue = attendees.filter(id => !busyIds.has(id)).sort((a, b) => getAdjustedCount(a) - getAdjustedCount(b));
+
+    while (getRealMatchCount() < maxCourts && freshQueue.length >= 4) {
+        // 가장 게임을 덜 뛴 앞선 4명을 가차없이 통째로 도려내어 선점 (실력 무관 회전 극대화)
+        let group = freshQueue.slice(0, 4);
+
+        const teamResult = splitV2Teams(group);
+        finalMatches.push({
+            id: `m_${Date.now()}_${finalMatches.length}`, status: "대기",
+            teamA: teamResult.teamA, teamB: teamResult.teamB,
+            teamANames: getNamesFromIds(teamResult.teamA), teamBNames: getNamesFromIds(teamResult.teamB)
+        });
 
         group.forEach(id => busyIds.add(id));
         freshQueue = freshQueue.filter(id => !busyIds.has(id));
     }
 
-    // 최종 산출된 대진을 데이터베이스에 반영
-    update(
-        ref(getDatabase(), `sessions/${window.currentSessionKey}`),
-        { currentMatches: finalMatches }
-    );
-}
+    // 잔여 인원에 대한 홀딩 방 처리
+    if (getRealMatchCount() < maxCourts && freshQueue.length > 0 && freshQueue.length < 4) {
+        const anchorId = freshQueue[0];
+        if (!finalMatches.some(m => !m.teamB || m.teamB.length === 0)) {
+            finalMatches.push({ id: `hold_${anchorId}`, status: "대기", teamA: [...freshQueue], teamB: [], teamANames: getNamesFromIds([...freshQueue]), teamBNames: [] });
+        }
+    }
 
-// v2, v3 함수는 필요에 따라 아래에 구현하세요.
-function runV2Matching(s) { console.log("v2 매칭 로직 가동"); }
+    update(ref(db, `sessions/${window.currentSessionKey}`), { currentMatches: finalMatches });
+}
 function runV3Matching(s) { console.log("v3 매칭 로직 가동"); }
 
 function renderSessionRankTable(s) {
